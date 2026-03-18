@@ -16,7 +16,6 @@ Liminal DocGen currently supports:
 - Provider-backed live tests for:
   - `claude-sdk`
   - `claude-cli`
-  - `openrouter-http`
 
 Current limitations:
 
@@ -24,6 +23,7 @@ Current limitations:
 - Inference is one-shot and non-streaming
 - Usage and cost values are only surfaced when a provider reports them
 - Claude-backed OAuth support depends on local Claude CLI authentication state
+- `openrouter-http` is currently unstable in generation flows and should not be relied on for consistent output
 
 ## Installation and Local Setup
 
@@ -179,7 +179,7 @@ Provider/auth compatibility:
 |---|---|---|
 | `claude-sdk` | `oauth`, `env`, `api-key` | Uses the optional Claude Agent SDK package. OAuth depends on local Claude auth availability. |
 | `claude-cli` | `oauth`, `env`, `api-key` | Uses the `claude` CLI. OAuth depends on `claude auth login`. |
-| `openrouter-http` | `env`, `api-key` | Stateless HTTP provider. OAuth is not supported. |
+| `openrouter-http` | `env`, `api-key` | Stateless HTTP provider. OAuth is not supported. Currently unstable in end-to-end generation and not recommended for production use. |
 
 Recommended local practice:
 
@@ -247,6 +247,9 @@ Field reference:
   - Optional env var name override for env-based API key flows
 - `inference.model`
   - Optional provider model override
+  - When omitted, providers use their normal default selection behavior
+  - For `claude-sdk` and `claude-cli`, this value is a Claude provider-specific model selector
+  - For `openrouter-http`, this value is an OpenRouter model slug such as `openai/gpt-4o-mini`
 
 Notes:
 
@@ -372,9 +375,10 @@ What the live tests cover:
 - `claude-sdk` with API-key-backed auth
 - `claude-cli` with OAuth-backed local auth
 - `claude-cli` with API-key-backed auth
-- `openrouter-http` with API-key-backed auth
 - explicit CLI shell generation with `claude-cli`
 - live publish flow
+
+`openrouter-http` remains available in the codebase and CLI surface, but it is currently unstable in end-to-end generation. It is not part of the live smoke gate and is not recommended for reliable use right now.
 
 ## Publishing Workflow
 

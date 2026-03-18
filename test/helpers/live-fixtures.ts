@@ -1,11 +1,5 @@
 import { execFileSync } from "node:child_process";
-import {
-  cpSync,
-  mkdirSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
+import { cpSync, readFileSync, rmSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -17,29 +11,38 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 export interface LiveFixtureRepo {
+  fixtureName: LiveSmokeFixtureName;
   rootDir: string;
   repoPath: string;
   cleanup: () => void;
 }
 
-export const createLiveGenerationRepo = (): LiveFixtureRepo => {
+export type LiveSmokeFixtureName = "smoke-counter-cli" | "smoke-notes-api";
+
+const LIVE_SMOKE_FIXTURE_SOURCES: Record<LiveSmokeFixtureName, string> = {
+  "smoke-counter-cli": REPOS.smokeCounterCli,
+  "smoke-notes-api": REPOS.smokeNotesApi,
+};
+
+export const LIVE_SMOKE_FIXTURES = Object.keys(
+  LIVE_SMOKE_FIXTURE_SOURCES,
+) as LiveSmokeFixtureName[];
+
+export const createLiveGenerationRepo = (
+  fixtureName: LiveSmokeFixtureName = "smoke-counter-cli",
+): LiveFixtureRepo => {
   const rootDir = createTempDir();
   const repoPath = path.join(rootDir, "repo");
 
-  cpSync(REPOS.validTs, repoPath, { recursive: true });
-
-  for (const [relativePath, content] of Object.entries(
-    EXTRA_TYPESCRIPT_FILES,
-  )) {
-    const absolutePath = path.join(repoPath, relativePath);
-    mkdirSync(path.dirname(absolutePath), { recursive: true });
-    writeFileSync(absolutePath, content, "utf8");
-  }
+  cpSync(LIVE_SMOKE_FIXTURE_SOURCES[fixtureName], repoPath, {
+    recursive: true,
+  });
 
   initializeGitRepo(repoPath, "live-tests@example.com", "Live Tests");
 
   return {
     cleanup: () => cleanupTempDir(rootDir),
+    fixtureName,
     repoPath,
     rootDir,
   };
@@ -91,75 +94,3 @@ const PUBLISH_FIXTURE_OUTPUT = path.resolve(
   __dirname,
   "../fixtures/publish/valid-output-for-publish",
 );
-
-const EXTRA_TYPESCRIPT_FILES: Record<string, string> = {
-  "src/api/client.ts": [
-    'import { handleRequest } from "./http.js";',
-    "",
-    "export function callApi(userId: string): string {",
-    "  return handleRequest(userId);",
-    "}",
-    "",
-  ].join("\n"),
-  "src/api/http.ts": [
-    'import { runEngine } from "../core/engine.js";',
-    'import { formatResult } from "../utils/format.js";',
-    "",
-    "export function handleRequest(userId: string): string {",
-    "  return formatResult(runEngine(userId));",
-    "}",
-    "",
-  ].join("\n"),
-  "src/core/config.ts": [
-    'export const ENGINE_PREFIX = "engine";',
-    "",
-    "export function buildPrefix(userId: string): string {",
-    `  return \`\${ENGINE_PREFIX}:\${userId}\`;`,
-    "}",
-    "",
-  ].join("\n"),
-  "src/core/engine.ts": [
-    'import { buildPrefix } from "./config.js";',
-    'import { logResult } from "../utils/logger.js";',
-    "",
-    "export function runEngine(userId: string): string {",
-    "  const value = buildPrefix(userId);",
-    "  logResult(value);",
-    "  return value;",
-    "}",
-    "",
-  ].join("\n"),
-  "src/core/index.ts": [
-    'export { buildPrefix, ENGINE_PREFIX } from "./config.js";',
-    'export { runEngine } from "./engine.js";',
-    "",
-  ].join("\n"),
-  "src/features/auth/login.ts": [
-    'import { runEngine } from "../../core/engine.js";',
-    "",
-    "export function login(userId: string): string {",
-    "  return runEngine(userId);",
-    "}",
-    "",
-  ].join("\n"),
-  "src/features/auth/logout.ts": [
-    'import { buildPrefix } from "../../core/config.js";',
-    "",
-    "export function logout(userId: string): string {",
-    "  return buildPrefix(userId);",
-    "}",
-    "",
-  ].join("\n"),
-  "src/utils/format.ts": [
-    "export function formatResult(value: string): string {",
-    "  return '[' + value + ']';",
-    "}",
-    "",
-  ].join("\n"),
-  "src/utils/logger.ts": [
-    "export function logResult(_value: string): void {",
-    "  // no-op logger for fixture generation",
-    "}",
-    "",
-  ].join("\n"),
-};

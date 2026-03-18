@@ -11,6 +11,8 @@ export const REPOS = {
   empty: path.join(FIXTURES_ROOT, "repos/empty"),
   multiLang: path.join(FIXTURES_ROOT, "repos/multi-lang"),
   noGit: path.join(FIXTURES_ROOT, "repos/no-git"),
+  smokeCounterCli: path.join(FIXTURES_ROOT, "repos/smoke-counter-cli"),
+  smokeNotesApi: path.join(FIXTURES_ROOT, "repos/smoke-notes-api"),
 };
 
 export const DOCS_OUTPUT = {
