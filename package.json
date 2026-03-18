@@ -6,11 +6,11 @@
   "author": "Lee Moore",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/liminal-ai/liminal-docs.git"
+    "url": "git+https://github.com/liminal-ai/liminal-docgen.git"
   },
-  "homepage": "https://github.com/liminal-ai/liminal-docs#readme",
+  "homepage": "https://github.com/liminal-ai/liminal-docgen#readme",
   "bugs": {
-    "url": "https://github.com/liminal-ai/liminal-docs/issues"
+    "url": "https://github.com/liminal-ai/liminal-docgen/issues"
   },
   "keywords": [
     "documentation",
