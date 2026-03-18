@@ -9,7 +9,6 @@ import {
 } from "../adapters/subprocess.js";
 import { rawAnalysisOutputSchema } from "../contracts/analysis.js";
 import { getErrorMessage } from "../errors.js";
-import type { ResolvedConfiguration } from "../types/index.js";
 import type { RawAnalysisOutput } from "./raw-output.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -39,7 +38,7 @@ export class AnalysisAdapterError extends Error {
 
 export const runAnalysis = async (
   repoPath: string,
-  config: ResolvedConfiguration,
+  relativeFilePaths: string[],
 ): Promise<RawAnalysisOutput> => {
   const pythonCommand = await getPythonCommand();
 
@@ -53,7 +52,7 @@ export const runAnalysis = async (
   try {
     const result = await runSubprocess(
       pythonCommand,
-      buildAnalysisArgs(repoPath, config),
+      buildAnalysisArgs(repoPath, relativeFilePaths),
       {
         cwd: repoPath,
         timeoutMs: ANALYSIS_TIMEOUT_MS,
@@ -104,13 +103,12 @@ export const runAnalysis = async (
 
 const buildAnalysisArgs = (
   repoPath: string,
-  config: ResolvedConfiguration,
+  relativeFilePaths: string[],
 ): string[] => [
   ANALYSIS_SCRIPT_PATH,
   "--repo-path",
   repoPath,
-  ...flattenFlag("--include", config.includePatterns),
-  ...flattenFlag("--exclude", config.excludePatterns),
+  ...flattenFlag("--file", relativeFilePaths),
 ];
 
 const flattenFlag = (flag: string, values: string[]): string[] =>

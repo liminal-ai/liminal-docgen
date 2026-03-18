@@ -1,9 +1,12 @@
 import type { EngineResult } from "../types/common.js";
 
-export type InferenceProviderId =
-  | "claude-sdk"
-  | "claude-cli"
-  | "openrouter-http";
+export const INFERENCE_PROVIDER_IDS = [
+  "claude-sdk",
+  "claude-cli",
+  "openrouter-http",
+] as const;
+
+export type InferenceProviderId = (typeof INFERENCE_PROVIDER_IDS)[number];
 
 export type InferenceAuthMode = "env" | "api-key" | "oauth";
 

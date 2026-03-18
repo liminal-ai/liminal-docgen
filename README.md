@@ -183,9 +183,12 @@ Provider/auth compatibility:
 
 Recommended local practice:
 
+- Use `claude-cli` with `oauth` for the most natural local operator workflow
+- Use `claude-sdk` when you specifically want SDK-backed integration behavior
 - Use `oauth` for Claude-backed providers when you already use the Claude CLI locally
 - Use `env` for API-key-backed flows
 - Do not store raw API keys in `.liminal-docgen.json`
+- Avoid `openrouter-http` for reliable end-to-end generation until it stabilizes
 
 Usage and cost behavior:
 
@@ -248,7 +251,7 @@ Field reference:
 - `inference.model`
   - Optional provider model override
   - When omitted, providers use their normal default selection behavior
-  - For `claude-sdk` and `claude-cli`, this value is a Claude provider-specific model selector
+  - For `claude-sdk` and `claude-cli`, this value is a Claude provider-specific model selector such as `default`, `sonnet`, or `opus`
   - For `openrouter-http`, this value is an OpenRouter model slug such as `openai/gpt-4o-mini`
 
 Notes:

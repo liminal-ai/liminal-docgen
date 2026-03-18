@@ -1,10 +1,10 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { access, readdir, readFile } from "node:fs/promises";
 import path from "node:path";
-import * as agentSdkModule from "../../src/adapters/agent-sdk.js";
 import * as analysisModule from "../../src/analysis/analyze.js";
 import * as environmentModule from "../../src/environment/check.js";
 import { generateDocumentation } from "../../src/index.js";
+import * as inferenceRuntimeModule from "../../src/inference/runtime.js";
 import * as modulePlanningStage from "../../src/orchestration/stages/module-planning.js";
 import { ok } from "../../src/types/common.js";
 import type {
@@ -148,7 +148,9 @@ const setupPipelineMocks = (
     ...sdkConfig,
   });
 
-  vi.spyOn(agentSdkModule, "createAgentSDKAdapter").mockReturnValue(sdk);
+  vi.spyOn(inferenceRuntimeModule, "createInferenceRuntime").mockReturnValue(
+    sdk,
+  );
   vi.spyOn(environmentModule, "checkEnvironment").mockResolvedValue(
     ok({
       detectedLanguages: ["typescript"],
@@ -332,7 +334,10 @@ describe("generateDocumentation", () => {
   });
 
   it("TC-1.2c: invalid request produces structured error", async () => {
-    const createSdkSpy = vi.spyOn(agentSdkModule, "createAgentSDKAdapter");
+    const createSdkSpy = vi.spyOn(
+      inferenceRuntimeModule,
+      "createInferenceRuntime",
+    );
     const environmentSpy = vi.spyOn(environmentModule, "checkEnvironment");
     const analysisSpy = vi.spyOn(analysisModule, "analyzeRepository");
 
@@ -435,6 +440,79 @@ describe("generateDocumentation", () => {
     );
 
     expect(overview).toContain("```mermaid");
+  });
+
+  it("renders structured documentation packets into stable module sections", async () => {
+    const repoPath = createRepo();
+    setupPipelineMocks(repoPath, {
+      sdkConfig: {
+        moduleGeneration: [
+          {
+            output: {
+              crossLinks: ["utils"],
+              entityTable: [
+                {
+                  dependsOn: ["src/types/common.ts"],
+                  kind: "function",
+                  name: "bootstrapAuth",
+                  publicEntrypoints: ["src/index.ts:bootstrapAuth"],
+                  role: "Coordinates the authentication bootstrap entrypoint.",
+                  usedBy: ["src/auth.ts"],
+                },
+              ],
+              flowNotes: [
+                {
+                  action: "Starts the auth bootstrap flow",
+                  actor: "src/index.ts",
+                  output: "Initializes the runtime auth path",
+                  step: 1,
+                },
+              ],
+              overview:
+                "Coordinates the top-level auth runtime and points readers to the core entrypoints.",
+              packetMode: "full-packet",
+              responsibilities: [
+                "Initialize the auth runtime",
+                "Delegate session setup to collaborators",
+              ],
+              sequenceDiagram:
+                "sequenceDiagram\n  participant Index as src/index.ts\n  participant Auth as src/auth.ts\n  Index->>Auth: bootstrapAuth()",
+              structureDiagram:
+                "flowchart TD\n  Index[src/index.ts] --> Auth[src/auth.ts]",
+              structureDiagramKind: "flowchart",
+              title: "Core",
+            },
+            usage: { inputTokens: 1200, outputTokens: 700 },
+          },
+          {
+            output: CORE_PAGE,
+            usage: { inputTokens: 1400, outputTokens: 900 },
+          },
+          {
+            output: UTILS_PAGE,
+            usage: { inputTokens: 1100, outputTokens: 650 },
+          },
+        ],
+      },
+    });
+
+    const result = expectSuccess(
+      await generateDocumentation(withInference({ mode: "full", repoPath })),
+    );
+    const corePage = await readFile(
+      path.join(result.outputPath, "api.md"),
+      "utf8",
+    );
+
+    expect(corePage).toContain("## Overview");
+    expect(corePage).toContain("## Responsibilities");
+    expect(corePage).toContain("## Structure Diagram");
+    expect(corePage).toContain("## Entity Table");
+    expect(corePage).toContain("## Key Flow");
+    expect(corePage).toContain("## Flow Notes");
+    expect(corePage).toContain("## Source Coverage");
+    expect(corePage).toContain("sequenceDiagram");
+    expect(corePage).toContain("bootstrapAuth");
   });
 
   it("TC-1.6a: module tree matches plan", async () => {

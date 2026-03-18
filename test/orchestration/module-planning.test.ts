@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 
-import type { AgentSDKAdapter } from "../../src/adapters/agent-sdk.js";
+import type { InferenceProvider } from "../../src/inference/index.js";
 import { planModules } from "../../src/orchestration/stages/module-planning.js";
 import type {
   AnalyzedRelationship,
@@ -99,7 +99,7 @@ describe("planModules", () => {
       "src/types/common.ts",
     ]);
     const query = vi.fn();
-    const sdk: AgentSDKAdapter = {
+    const sdk: InferenceProvider & { query: typeof query } = {
       computeCost: () => 0,
       getAccumulatedUsage: () => ({ inputTokens: 0, outputTokens: 0 }),
       infer: query,
@@ -306,7 +306,7 @@ describe("planModules", () => {
       "types.ts",
     ]);
     const query = vi.fn();
-    const sdk: AgentSDKAdapter = {
+    const sdk: InferenceProvider & { query: typeof query } = {
       computeCost: () => 0,
       getAccumulatedUsage: () => ({ inputTokens: 0, outputTokens: 0 }),
       infer: query,
@@ -334,7 +334,7 @@ describe("planModules", () => {
       "README.ts",
     ]);
     const query = vi.fn();
-    const sdk: AgentSDKAdapter = {
+    const sdk: InferenceProvider & { query: typeof query } = {
       computeCost: () => 0,
       getAccumulatedUsage: () => ({ inputTokens: 0, outputTokens: 0 }),
       infer: query,
@@ -367,7 +367,7 @@ describe("planModules", () => {
   it("empty analysis returns ORCHESTRATION_ERROR", async () => {
     const analysis = buildAnalysis([]);
     const query = vi.fn();
-    const sdk: AgentSDKAdapter = {
+    const sdk: InferenceProvider & { query: typeof query } = {
       computeCost: () => 0,
       getAccumulatedUsage: () => ({ inputTokens: 0, outputTokens: 0 }),
       infer: query,
@@ -400,7 +400,7 @@ describe("planModules", () => {
     const sdk = createMockSDK({
       globalError: {
         code: "ORCHESTRATION_ERROR",
-        message: "Agent SDK network timeout",
+        message: "Inference provider network timeout",
       },
     });
 

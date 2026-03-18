@@ -1,11 +1,10 @@
 import { readFileSync } from "node:fs";
 import { access, cp, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-
-import * as agentSdkModule from "../../src/adapters/agent-sdk.js";
 import * as analysisModule from "../../src/analysis/analyze.js";
 import * as environmentModule from "../../src/environment/check.js";
 import { generateDocumentation } from "../../src/index.js";
+import * as inferenceRuntimeModule from "../../src/inference/runtime.js";
 import { resolveAndValidateRequest } from "../../src/orchestration/stages/resolve-and-validate.js";
 import { validateAndReview } from "../../src/orchestration/stages/validation-and-review.js";
 import { ok } from "../../src/types/common.js";
@@ -234,7 +233,9 @@ const setupPipelineMocks = (
 
   const querySpy = vi.spyOn(sdk, "query");
 
-  vi.spyOn(agentSdkModule, "createAgentSDKAdapter").mockReturnValue(sdk);
+  vi.spyOn(inferenceRuntimeModule, "createInferenceRuntime").mockReturnValue(
+    sdk,
+  );
   vi.spyOn(environmentModule, "checkEnvironment").mockResolvedValue(
     ok({
       detectedLanguages: ["typescript"],

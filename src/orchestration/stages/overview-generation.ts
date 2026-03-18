@@ -50,7 +50,7 @@ export const generateOverview = async (
 
     if (!result.ok) {
       return err("ORCHESTRATION_ERROR", "Overview generation failed", {
-        sdkError: result.error,
+        providerError: result.error,
       });
     }
 
@@ -61,7 +61,7 @@ export const generateOverview = async (
     if (!parsedResult.success) {
       return err(
         "ORCHESTRATION_ERROR",
-        "Agent SDK returned invalid overview documentation",
+        "Inference provider returned invalid overview documentation",
         {
           rawResponse: result.value.output,
           validationErrors: parsedResult.error.flatten(),

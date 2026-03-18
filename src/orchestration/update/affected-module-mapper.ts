@@ -1,3 +1,4 @@
+import { CLUSTERING_THRESHOLD } from "../../contracts/planning.js";
 import { ok } from "../../types/common.js";
 import type {
   AnalyzedRelationship,
@@ -33,6 +34,7 @@ export const mapToAffectedModules = (
   const updatedUnmappedComponents = new Set<string>();
   const warnings = new Set<string>();
   const unmappableFiles = new Set<string>();
+  const relationshipImpactedModules = new Set<string>();
 
   for (const componentPath of currentComponentPaths) {
     const mappedModule =
@@ -127,17 +129,36 @@ export const mapToAffectedModules = (
       currentModuleAssignments,
       freshAnalysis.relationships,
     )) {
+      relationshipImpactedModules.add(relatedModule);
+
       if (!modulesToRemove.has(relatedModule)) {
         modulesToRegenerate.add(relatedModule);
       }
     }
   }
 
+  const structuralChangeModules = getStructurallyChangedModules(
+    priorPlan,
+    validatedUpdatedPlan.value,
+  );
+
   const priorComponentCount =
     priorPlan.modules.reduce(
       (total, module) => total + module.components.length,
       priorPlan.unmappedComponents.length,
     ) || 1;
+  const requiresFullRegeneration = shouldRequireFullRegeneration({
+    priorComponentCount,
+    affectedPriorComponentCount: affectedPriorComponents.size,
+    unmappableFileCount: unmappableFiles.size,
+  });
+  const fullRegenerationReason = requiresFullRegeneration
+    ? buildFullRegenerationReason({
+        priorComponentCount,
+        affectedPriorComponentCount: affectedPriorComponents.size,
+        unmappableFiles: [...unmappableFiles].sort(),
+      })
+    : undefined;
 
   if (affectedPriorComponents.size / priorComponentCount > 0.5) {
     warnings.add(
@@ -162,7 +183,14 @@ export const mapToAffectedModules = (
       unchangedModules: [...remainingModuleNames]
         .filter((moduleName) => !modulesToRegenerate.has(moduleName))
         .sort(),
-      overviewNeedsRegeneration: modulesToRemove.size > 0,
+      overviewNeedsRegeneration:
+        modulesToRemove.size > 0 ||
+        structuralChangeModules.size > 0 ||
+        relationshipImpactedModules.size > 0,
+      moduleTreeNeedsRewrite:
+        modulesToRemove.size > 0 || structuralChangeModules.size > 0,
+      requiresFullRegeneration,
+      ...(fullRegenerationReason ? { fullRegenerationReason } : {}),
       unmappableFiles: [...unmappableFiles].sort(),
       warnings: [...warnings].sort(),
     },
@@ -241,24 +269,24 @@ const getNewlyIntroducedPath = (
   return priorKnownComponents.has(changedFile.path) ? null : changedFile.path;
 };
 
-// Known limitation: only propagates impact from source → target relationships.
-// If file B imports file A, a change to A won't mark B's module as affected
-// unless A is the relationship source. Full bidirectional propagation is deferred.
 const getRelationshipImpacts = (
   changedFile: ChangedFile,
   currentModuleAssignments: Map<string, string>,
   relationships: AnalyzedRelationship[],
 ): Set<string> => {
-  const currentModule = currentModuleAssignments.get(changedFile.path);
-
-  if (!currentModule) {
-    return new Set();
-  }
+  const changedPaths = new Set(
+    [changedFile.path, changedFile.oldPath].filter((value): value is string =>
+      Boolean(value),
+    ),
+  );
 
   const impactedModules = new Set<string>();
 
   for (const relationship of relationships) {
-    if (relationship.source !== changedFile.path) {
+    if (
+      !changedPaths.has(relationship.source) &&
+      !changedPaths.has(relationship.target)
+    ) {
       continue;
     }
 
@@ -274,6 +302,72 @@ const getRelationshipImpacts = (
   }
 
   return impactedModules;
+};
+
+const getStructurallyChangedModules = (
+  priorPlan: ModulePlan,
+  updatedPlan: ModulePlan,
+): Set<string> => {
+  const updatedModulesByName = new Map(
+    updatedPlan.modules.map((module) => [module.name, module] as const),
+  );
+  const structuralChangeModules = new Set<string>();
+
+  for (const priorModule of priorPlan.modules) {
+    const updatedModule = updatedModulesByName.get(priorModule.name);
+
+    if (!updatedModule) {
+      structuralChangeModules.add(priorModule.name);
+      continue;
+    }
+
+    if (
+      !areSortedListsEqual(priorModule.components, updatedModule.components)
+    ) {
+      structuralChangeModules.add(priorModule.name);
+    }
+  }
+
+  return structuralChangeModules;
+};
+
+const areSortedListsEqual = (left: string[], right: string[]): boolean => {
+  if (left.length !== right.length) {
+    return false;
+  }
+
+  const sortedLeft = [...left].sort();
+  const sortedRight = [...right].sort();
+
+  return sortedLeft.every((value, index) => value === sortedRight[index]);
+};
+
+const shouldRequireFullRegeneration = (options: {
+  priorComponentCount: number;
+  affectedPriorComponentCount: number;
+  unmappableFileCount: number;
+}): boolean => {
+  if (options.priorComponentCount <= CLUSTERING_THRESHOLD) {
+    return false;
+  }
+
+  if (options.affectedPriorComponentCount / options.priorComponentCount > 0.5) {
+    return true;
+  }
+
+  return options.unmappableFileCount > 0;
+};
+
+const buildFullRegenerationReason = (options: {
+  priorComponentCount: number;
+  affectedPriorComponentCount: number;
+  unmappableFiles: string[];
+}): string => {
+  if (options.unmappableFiles.length > 0) {
+    return `Update mode detected new or moved files that could not be mapped to the existing module plan (${options.unmappableFiles.join(", ")}). Run full generation to refresh the documentation baseline.`;
+  }
+
+  return `Update mode affected ${options.affectedPriorComponentCount} of ${options.priorComponentCount} tracked components. Run full generation to refresh the documentation baseline.`;
 };
 
 const mapComponentToExistingModule = (

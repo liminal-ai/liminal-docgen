@@ -1,3 +1,7 @@
+import {
+  buildModuleDocumentationFacts,
+  selectModuleDocumentationPacket,
+} from "../../src/orchestration/module-doc-packet.js";
 import { buildClusteringPrompt } from "../../src/prompts/clustering.js";
 import { buildModuleDocPrompt } from "../../src/prompts/module-doc.js";
 import { buildOverviewPrompt } from "../../src/prompts/overview.js";
@@ -124,11 +128,24 @@ describe("prompt builders", () => {
       ],
     );
 
-    const value = buildModuleDocPrompt(module, modulePlan, analysis);
+    const selection = selectModuleDocumentationPacket(
+      module,
+      modulePlan,
+      analysis,
+    );
+    const facts = buildModuleDocumentationFacts(module, modulePlan, analysis);
+    const value = buildModuleDocPrompt(
+      module,
+      modulePlan,
+      analysis,
+      selection,
+      facts,
+    );
 
     expect(value.userMessage).toContain("Module name: core");
     expect(value.userMessage).toContain("src/index.ts");
-    expect(value.userMessage).toContain("Depends on modules: api");
+    expect(value.userMessage).toContain("recommended packet mode");
+    expect(value.userMessage).toContain("Entity candidates:");
     expect(value.userMessage).toContain(
       "src/index.ts -> src/api/client.ts (import)",
     );

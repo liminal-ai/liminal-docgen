@@ -3,8 +3,10 @@ export { analyzeRepository } from "./analysis/analyze.js";
 export { resolveConfiguration } from "./config/resolver.js";
 export { checkEnvironment } from "./environment/check.js";
 export {
+  buildInferenceConfigurationFromCliOverrides,
   getProviderDefinition,
   INFERENCE_PROVIDER_REGISTRY,
+  normalizeOptionalModelSelection,
   resolveInferenceConfiguration,
 } from "./inference/index.js";
 export { readMetadata } from "./metadata/reader.js";

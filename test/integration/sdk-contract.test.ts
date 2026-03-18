@@ -44,8 +44,8 @@ const mockAnalyzeRepository = vi.hoisted(() => vi.fn());
 const mockCheckEnvironment = vi.hoisted(() => vi.fn());
 const mockGetHeadCommitHash = vi.hoisted(() => vi.fn());
 
-vi.mock("../../src/adapters/agent-sdk.js", () => ({
-  createAgentSDKAdapter: mockCreateAgentSDKAdapter,
+vi.mock("../../src/inference/runtime.js", () => ({
+  createInferenceRuntime: mockCreateAgentSDKAdapter,
 }));
 
 vi.mock("../../src/analysis/analyze.js", () => ({
@@ -717,7 +717,7 @@ describe("public SDK integration contract", () => {
   it("package entry point does not export internal modules", () => {
     const exportKeys = Object.keys(sdk);
 
-    expect(exportKeys).not.toContain("createAgentSDKAdapter");
+    expect(exportKeys).not.toContain("createInferenceRuntime");
     expect(exportKeys).not.toContain("getHeadCommitHash");
     expect(exportKeys).not.toContain("planModules");
     expect(exportKeys).not.toContain("RunContext");

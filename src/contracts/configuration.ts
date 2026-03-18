@@ -1,10 +1,7 @@
 import { z } from "zod";
+import { INFERENCE_PROVIDER_IDS } from "../inference/types.js";
 
-const inferenceProviderIdSchema = z.enum([
-  "claude-sdk",
-  "claude-cli",
-  "openrouter-http",
-]);
+const inferenceProviderIdSchema = z.enum(INFERENCE_PROVIDER_IDS);
 
 const inferenceAuthSchema = z.discriminatedUnion("mode", [
   z.object({

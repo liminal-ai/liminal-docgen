@@ -39,6 +39,12 @@ export const checkInferenceProvider = async (
       }
       break;
     case "openrouter-http":
+      findings.push({
+        category: "environment",
+        message:
+          'Provider "openrouter-http" is currently unstable in end-to-end generation and is not recommended for reliable use.',
+        severity: "warning",
+      });
       break;
   }
 

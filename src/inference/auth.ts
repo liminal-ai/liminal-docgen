@@ -1,3 +1,4 @@
+import { normalizeOptionalModelSelection } from "./configuration.js";
 import { getProviderDefinition } from "./registry.js";
 import type {
   InferenceAuthConfiguration,
@@ -21,7 +22,7 @@ export const resolveInferenceConfiguration = (
 
   return {
     auth: normalizeAuthConfiguration(auth, definition.defaultApiKeyEnvVar),
-    model: value.model,
+    model: normalizeOptionalModelSelection(value.model),
     provider: value.provider,
   };
 };

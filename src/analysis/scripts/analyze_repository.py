@@ -78,7 +78,12 @@ def main() -> int:
     if not repo_path.exists() or not repo_path.is_dir():
         raise SystemExit(f"Repository path does not exist or is not a directory: {repo_path}")
 
-    file_records = collect_files(repo_path, args.include or [], args.exclude or [])
+    file_records = collect_files(
+        repo_path,
+        args.include or [],
+        args.exclude or [],
+        args.file or None,
+    )
     file_tree = build_file_tree(repo_path, file_records)
     analysis = analyze_files(repo_path, file_records)
 
@@ -103,6 +108,7 @@ def main() -> int:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--repo-path", required=True)
+    parser.add_argument("--file", action="append")
     parser.add_argument("--include", action="append")
     parser.add_argument("--exclude", action="append")
     return parser.parse_args()
@@ -112,11 +118,21 @@ def collect_files(
     repo_path: Path,
     include_patterns: list[str],
     exclude_patterns: list[str],
+    explicit_files: list[str] | None = None,
 ) -> list[dict[str, Any]]:
     patterns_to_exclude = [*DEFAULT_EXCLUDE_PATTERNS, *exclude_patterns]
     records: list[dict[str, Any]] = []
 
-    for file_path in sorted(path for path in repo_path.rglob("*") if path.is_file()):
+    candidate_paths = (
+        [repo_path / relative_path for relative_path in explicit_files]
+        if explicit_files
+        else sorted(path for path in repo_path.rglob("*") if path.is_file())
+    )
+
+    for file_path in candidate_paths:
+        if not file_path.is_file():
+            continue
+
         relative_path = file_path.relative_to(repo_path).as_posix()
 
         if should_exclude(relative_path, patterns_to_exclude):

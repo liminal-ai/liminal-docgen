@@ -32,8 +32,8 @@ const mockAnalyzeRepository = vi.hoisted(() => vi.fn());
 const mockCheckEnvironment = vi.hoisted(() => vi.fn());
 const mockGetHeadCommitHash = vi.hoisted(() => vi.fn());
 
-vi.mock("../../src/adapters/agent-sdk.js", () => ({
-  createAgentSDKAdapter: mockCreateAgentSDKAdapter,
+vi.mock("../../src/inference/runtime.js", () => ({
+  createInferenceRuntime: mockCreateAgentSDKAdapter,
 }));
 
 vi.mock("../../src/analysis/analyze.js", () => ({

@@ -1,5 +1,7 @@
 import path from "node:path";
 import { resolveConfiguration } from "../config/resolver.js";
+import { buildInferenceConfigurationFromCliOverrides } from "../inference/index.js";
+import type { InferenceProviderId } from "../inference/types.js";
 import { ok } from "../types/common.js";
 import type {
   AnalysisOptions,
@@ -18,7 +20,7 @@ export interface ConfigurableCliArgs {
   include?: string;
   exclude?: string;
   focus?: string;
-  provider?: "claude-sdk" | "claude-cli" | "openrouter-http";
+  provider?: InferenceProviderId;
   authMode?: "env" | "oauth";
   apiKeyEnv?: string;
   model?: string;
@@ -139,32 +141,12 @@ const toConfigurationRequest = (
     : undefined,
   excludePatterns: splitCommaSeparated(args.exclude),
   focusDirs: splitCommaSeparated(args.focus),
-  inference:
-    args.provider !== undefined ||
-    args.authMode !== undefined ||
-    args.apiKeyEnv !== undefined ||
-    args.model !== undefined
-      ? {
-          auth: args.authMode
-            ? args.authMode === "oauth"
-              ? { mode: "oauth" as const }
-              : {
-                  apiKeyEnvVar: args.apiKeyEnv,
-                  mode: "env" as const,
-                }
-            : args.apiKeyEnv
-              ? {
-                  apiKeyEnvVar: args.apiKeyEnv,
-                  mode: "env" as const,
-                }
-              : undefined,
-          model: args.model,
-          provider: args.provider as
-            | "claude-sdk"
-            | "claude-cli"
-            | "openrouter-http",
-        }
-      : undefined,
+  inference: buildInferenceConfigurationFromCliOverrides({
+    apiKeyEnv: args.apiKeyEnv,
+    authMode: args.authMode,
+    model: args.model,
+    provider: args.provider,
+  }),
   includePatterns: splitCommaSeparated(args.include),
   outputPath: args.outputPath,
   repoPath: args.repoPath,

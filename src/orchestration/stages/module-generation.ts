@@ -17,6 +17,13 @@ import type {
   RepositoryAnalysis,
   ResolvedRunConfig,
 } from "../../types/index.js";
+import {
+  buildModuleDocumentationFacts,
+  defaultEntityTable,
+  defaultFlowNotes,
+  renderModuleDocumentationPacket,
+  selectModuleDocumentationPacket,
+} from "../module-doc-packet.js";
 import { resolveOutputPath } from "../output-path.js";
 
 export type ModuleProgressCallback = (
@@ -112,10 +119,14 @@ const generateModulePage = async (
   _config: ResolvedRunConfig,
   provider: InferenceProvider,
 ): Promise<EngineResult<string>> => {
+  const selection = selectModuleDocumentationPacket(module, plan, analysis);
+  const facts = buildModuleDocumentationFacts(module, plan, analysis);
   const { systemPrompt, userMessage } = buildModuleDocPrompt(
     module,
     plan,
     analysis,
+    selection,
+    facts,
   );
 
   try {
@@ -128,7 +139,7 @@ const generateModulePage = async (
     if (!result.ok) {
       return err("ORCHESTRATION_ERROR", "Module generation failed", {
         moduleName: module.name,
-        sdkError: result.error,
+        providerError: result.error,
       });
     }
 
@@ -139,7 +150,7 @@ const generateModulePage = async (
     if (!parsedResult.success) {
       return err(
         "ORCHESTRATION_ERROR",
-        "Agent SDK returned invalid module documentation",
+        "Inference provider returned invalid module documentation",
         {
           moduleName: module.name,
           rawResponse: result.value.output,
@@ -148,7 +159,25 @@ const generateModulePage = async (
       );
     }
 
-    return ok(normalizeModulePage(parsedResult.data));
+    return ok(
+      normalizeModulePage(
+        {
+          ...parsedResult.data,
+          entityTable:
+            parsedResult.data.entityTable ??
+            (selection.packetMode === "full-packet"
+              ? defaultEntityTable(facts.entityCandidates)
+              : undefined),
+          flowNotes:
+            parsedResult.data.flowNotes ??
+            (selection.recommendSequenceDiagram
+              ? defaultFlowNotes(facts.flowCandidates)
+              : undefined),
+        },
+        selection,
+        facts,
+      ),
+    );
   } catch (error) {
     return err("ORCHESTRATION_ERROR", "Module generation failed", {
       cause: error instanceof Error ? error.message : String(error),
@@ -157,8 +186,16 @@ const generateModulePage = async (
   }
 };
 
-const normalizeModulePage = (result: ModuleGenerationResult): string => {
-  const trimmedContent = result.pageContent.trim();
+const normalizeModulePage = (
+  result: ModuleGenerationResult,
+  selection: ReturnType<typeof selectModuleDocumentationPacket>,
+  facts: ReturnType<typeof buildModuleDocumentationFacts>,
+): string => {
+  if (result.overview || result.structureDiagram || result.sequenceDiagram) {
+    return renderModuleDocumentationPacket(result, selection, facts);
+  }
+
+  const trimmedContent = result.pageContent?.trim() ?? "";
 
   if (trimmedContent.startsWith("#")) {
     return trimmedContent;

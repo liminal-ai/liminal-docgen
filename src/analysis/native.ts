@@ -74,6 +74,7 @@ export const runNativeAnalysis = async (
     realpath: ts.sys.realpath,
   };
   const exportedNodes: RawNode[] = [];
+  const fileImportRelationships: RawCallRelationship[] = [];
 
   for (const context of sourceContexts) {
     const importTargets = collectImportTargets(
@@ -82,6 +83,9 @@ export const runNativeAnalysis = async (
       program.getCompilerOptions(),
       analyzedFilePathSet,
       relativePathByAbsolute,
+    );
+    fileImportRelationships.push(
+      ...createImportRelationships(context.file.path, importTargets),
     );
     exportedNodes.push(...collectExportedNodes(context, importTargets));
   }
@@ -92,13 +96,16 @@ export const runNativeAnalysis = async (
     analyzedFilePathSet,
     relativePathByAbsolute,
   );
-  const relationships = collectUsageRelationships(
-    sourceContexts,
-    checker,
-    analyzedFilePathSet,
-    relativePathByAbsolute,
-    transitiveExternalTargets,
-  );
+  const relationships = [
+    ...fileImportRelationships,
+    ...collectUsageRelationships(
+      sourceContexts,
+      checker,
+      analyzedFilePathSet,
+      relativePathByAbsolute,
+      transitiveExternalTargets,
+    ),
+  ].sort(compareRelationships);
 
   return {
     file_tree: fileTree,
@@ -285,6 +292,16 @@ const collectExportedNodes = (
 
   return nodes;
 };
+
+const createImportRelationships = (
+  sourcePath: string,
+  importTargets: string[],
+): RawCallRelationship[] =>
+  importTargets.map((targetPath) => ({
+    callee: targetPath,
+    caller: sourcePath,
+    is_resolved: true,
+  }));
 
 const buildTransitiveExternalTargetMap = (
   sourceContexts: SourceFileContext[],

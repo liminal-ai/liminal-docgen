@@ -1,10 +1,9 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
-
-import * as agentSdkModule from "../../src/adapters/agent-sdk.js";
 import * as analysisModule from "../../src/analysis/analyze.js";
 import * as environmentModule from "../../src/environment/check.js";
 import { generateDocumentation } from "../../src/index.js";
+import * as inferenceRuntimeModule from "../../src/inference/runtime.js";
 import * as modulePlanningStage from "../../src/orchestration/stages/module-planning.js";
 import { ok } from "../../src/types/common.js";
 import type {
@@ -149,7 +148,9 @@ const setupPipelineMocks = (
     ...sdkConfig,
   });
 
-  vi.spyOn(agentSdkModule, "createAgentSDKAdapter").mockReturnValue(sdk);
+  vi.spyOn(inferenceRuntimeModule, "createInferenceRuntime").mockReturnValue(
+    sdk,
+  );
   vi.spyOn(environmentModule, "checkEnvironment").mockResolvedValue(
     ok({
       detectedLanguages: ["typescript"],

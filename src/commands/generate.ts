@@ -9,6 +9,7 @@ import {
   writeJsonResult,
 } from "../cli/output.js";
 import { createProgressRenderer } from "../cli/progress.js";
+import type { InferenceProviderId } from "../inference/types.js";
 import { generateDocumentation } from "../orchestration/generate.js";
 
 export default defineCommand({
@@ -76,11 +77,7 @@ export default defineCommand({
         authMode: args["auth-mode"] as "env" | "oauth" | undefined,
         model: args.model,
         outputPath: args["output-path"],
-        provider: args.provider as
-          | "claude-sdk"
-          | "claude-cli"
-          | "openrouter-http"
-          | undefined,
+        provider: args.provider as InferenceProviderId | undefined,
         repoPath: args["repo-path"],
       },
       "full",

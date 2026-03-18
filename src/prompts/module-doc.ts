@@ -1,3 +1,8 @@
+import {
+  type ModuleDocumentationFacts,
+  type ModuleDocumentationSelection,
+  summarizeEntityCandidatesForPrompt,
+} from "../orchestration/module-doc-packet.js";
 import type { RepositoryAnalysis } from "../types/analysis.js";
 import type { ModulePlan, PlannedModule } from "../types/planning.js";
 
@@ -5,66 +10,41 @@ export const buildModuleDocPrompt = (
   module: PlannedModule,
   modulePlan: ModulePlan,
   analysis: RepositoryAnalysis,
+  selection: ModuleDocumentationSelection,
+  facts: ModuleDocumentationFacts,
 ): { systemPrompt: string; userMessage: string } => {
-  const moduleComponentSet = new Set(module.components);
-  const moduleLookup = new Map(
-    modulePlan.modules.map((plannedModule) => [
-      plannedModule.name,
-      new Set(plannedModule.components),
-    ]),
-  );
-  const dependsOn = new Set<string>();
-  const dependedOnBy = new Set<string>();
-  const relationshipDetails: string[] = [];
-
-  for (const relationship of analysis.relationships) {
-    const sourceInModule = moduleComponentSet.has(relationship.source);
-    const targetInModule = moduleComponentSet.has(relationship.target);
-
-    if (!sourceInModule && !targetInModule) {
-      continue;
-    }
-
-    for (const plannedModule of modulePlan.modules) {
-      if (plannedModule.name === module.name) {
-        continue;
-      }
-
-      const plannedComponentSet = moduleLookup.get(plannedModule.name);
-
-      if (!plannedComponentSet) {
-        continue;
-      }
-
-      if (sourceInModule && plannedComponentSet.has(relationship.target)) {
-        dependsOn.add(plannedModule.name);
-        relationshipDetails.push(
-          `${relationship.source} -> ${relationship.target} (${relationship.type})`,
-        );
-      }
-
-      if (targetInModule && plannedComponentSet.has(relationship.source)) {
-        dependedOnBy.add(plannedModule.name);
-        relationshipDetails.push(
-          `${relationship.source} -> ${relationship.target} (${relationship.type})`,
-        );
-      }
-    }
-  }
-
   const systemPrompt = `
 You are generating a wiki page for one repository module.
 
-Write a concise markdown document that:
-- explains the module's purpose and responsibilities
-- references the concrete component file paths that belong to the module
-- mentions important dependencies on other modules where relevant
-- uses stable headings and clean markdown suitable for repository documentation
+Return grounded structured output for the module.
+
+You may improve clarity and wording, but you must stay within the analyzer-backed entities, relationships, and flow candidates provided.
+Do not invent classes, functions, interfaces, collaborators, or runtime flows that are not supported by the supplied context.
+
+For packetMode:
+- use "full-packet" only when the supplied context supports both a meaningful structural view and a meaningful representative flow
+- otherwise use "summary-only"
+
+For structureDiagram:
+- use Mermaid classDiagram when the class/interface/type shape is the clearest view
+- otherwise use a Mermaid flowchart-style structural dependency view
+- keep the diagram readable and scoped to the module
+
+For sequenceDiagram:
+- only include it when packetMode is "full-packet" and there is a meaningful runtime/control flow
+- keep it at the same abstraction level as the structure diagram
 
 Return structured output with:
-- pageContent: the markdown page
-- title: a short page title
-- crossLinks: related module names worth linking to
+- title
+- crossLinks
+- packetMode
+- overview
+- responsibilities
+- structureDiagramKind
+- structureDiagram
+- entityTable
+- sequenceDiagram
+- flowNotes
   `.trim();
 
   const componentSection =
@@ -90,15 +70,25 @@ Module name: ${module.name}
 Module description: ${module.description}
 Focus directories: ${analysis.focusDirs.length > 0 ? analysis.focusDirs.toSorted().join(", ") : "none"}
 Repository summary: ${analysis.summary.totalComponents} components, ${analysis.summary.totalRelationships} relationships, languages ${analysis.summary.languagesFound.toSorted().join(", ")}
+Packet recommendation:
+- recommended packet mode: ${selection.packetMode}
+- recommended structure diagram kind: ${selection.preferredStructureDiagramKind}
+- recommend sequence diagram: ${selection.recommendSequenceDiagram ? "yes" : "no"}
+- reason: ${selection.selectionReason}
 
 Components:
 ${componentSection}
 
 Cross-module context:
-- Depends on modules: ${dependsOn.size > 0 ? [...dependsOn].toSorted().join(", ") : "none"}
-- Depended on by modules: ${dependedOnBy.size > 0 ? [...dependedOnBy].toSorted().join(", ") : "none"}
-- Relationship details: ${relationshipDetails.length > 0 ? [...new Set(relationshipDetails)].sort().join("; ") : "none"}
+- Internal relationships: ${facts.internalRelationships.length > 0 ? facts.internalRelationships.join("; ") : "none"}
+- Cross-module relationships: ${facts.crossModuleRelationships.length > 0 ? facts.crossModuleRelationships.join("; ") : "none"}
 - Unmapped components nearby: ${modulePlan.unmappedComponents.length > 0 ? modulePlan.unmappedComponents.toSorted().join(", ") : "none"}
+
+Entity candidates:
+${summarizeEntityCandidatesForPrompt(facts.entityCandidates)}
+
+Flow candidates:
+${facts.flowCandidates.length > 0 ? facts.flowCandidates.map((candidate) => `- ${candidate.actor} -> ${candidate.target} | ${candidate.action} | ${candidate.output}`).join("\n") : "- none"}
   `.trim();
 
   return { systemPrompt, userMessage };

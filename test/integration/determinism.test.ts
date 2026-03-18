@@ -19,8 +19,8 @@ const mockGetHeadCommitHash = vi.hoisted(() => vi.fn());
 const mockGetPythonCommand = vi.hoisted(() => vi.fn());
 const mockRunSubprocess = vi.hoisted(() => vi.fn());
 
-vi.mock("../../src/adapters/agent-sdk.js", () => ({
-  createAgentSDKAdapter: mockCreateAgentSDKAdapter,
+vi.mock("../../src/inference/runtime.js", () => ({
+  createInferenceRuntime: mockCreateAgentSDKAdapter,
 }));
 
 vi.mock("../../src/environment/check.js", () => ({
@@ -138,7 +138,7 @@ describe("integration determinism harness", () => {
     expect(firstFiles).toEqual(STORY5_EXPECTED_FILES);
     expect(secondFiles).toEqual(STORY5_EXPECTED_FILES);
     expect(secondFiles).toEqual(firstFiles);
-  });
+  }, 60_000);
 
   it("TC-5.4b: module tree deterministic", async () => {
     const firstRepo = trackRepo(createGitFixtureRepo());

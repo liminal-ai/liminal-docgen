@@ -7,6 +7,7 @@ import {
   type DocumentationRunResult,
   type DocumentationStatus,
   generateDocumentation,
+  normalizeOptionalModelSelection,
   readMetadata,
   type ValidationResult,
 } from "../../src/index.js";
@@ -22,25 +23,10 @@ import {
 const repos: LiveFixtureRepo[] = [];
 const timingRecords: LiveTimingRecord[] = [];
 
-const readOptionalModelOverride = (
-  value: string | undefined,
-): string | undefined => {
-  if (!value) {
-    return undefined;
-  }
-
-  const trimmedValue = value.trim();
-  if (trimmedValue.length === 0 || trimmedValue.startsWith("REPLACE_WITH_")) {
-    return undefined;
-  }
-
-  return trimmedValue;
-};
-
-const CLAUDE_MODEL = readOptionalModelOverride(
+const CLAUDE_MODEL = normalizeOptionalModelSelection(
   process.env.DOC_ENGINE_CLAUDE_MODEL,
 );
-const OPENROUTER_MODEL = readOptionalModelOverride(
+const OPENROUTER_MODEL = normalizeOptionalModelSelection(
   process.env.DOC_ENGINE_OPENROUTER_MODEL,
 );
 

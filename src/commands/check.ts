@@ -8,6 +8,8 @@ import {
   writeJsonResult,
 } from "../cli/output.js";
 import { checkEnvironment } from "../environment/check.js";
+import { buildInferenceConfigurationFromCliOverrides } from "../inference/index.js";
+import type { InferenceProviderId } from "../inference/types.js";
 
 export default defineCommand({
   args: {
@@ -59,32 +61,12 @@ export default defineCommand({
       excludePatterns: splitCommaSeparated(args.exclude),
       focusDirs: splitCommaSeparated(args.focus),
       includePatterns: splitCommaSeparated(args.include),
-      inference:
-        args.provider !== undefined ||
-        args["auth-mode"] !== undefined ||
-        args["api-key-env"] !== undefined ||
-        args.model !== undefined
-          ? {
-              auth: args["auth-mode"]
-                ? args["auth-mode"] === "oauth"
-                  ? { mode: "oauth" as const }
-                  : {
-                      apiKeyEnvVar: args["api-key-env"],
-                      mode: "env" as const,
-                    }
-                : args["api-key-env"]
-                  ? {
-                      apiKeyEnvVar: args["api-key-env"],
-                      mode: "env" as const,
-                    }
-                  : undefined,
-              model: args.model,
-              provider: args.provider as
-                | "claude-sdk"
-                | "claude-cli"
-                | "openrouter-http",
-            }
-          : undefined,
+      inference: buildInferenceConfigurationFromCliOverrides({
+        apiKeyEnv: args["api-key-env"],
+        authMode: args["auth-mode"] as "env" | "oauth" | undefined,
+        model: args.model,
+        provider: args.provider as InferenceProviderId | undefined,
+      }),
       repoPath: args["repo-path"],
     });
 

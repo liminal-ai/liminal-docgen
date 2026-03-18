@@ -1,35 +1,37 @@
-import type { ResolvedConfiguration } from "../types/index.js";
 import type { DiscoveredRepositoryFile } from "./file-discovery.js";
 
-export type AnalysisProviderKind = "native-typescript" | "python";
-
-export interface AnalysisProviderSelection {
-  kind: AnalysisProviderKind;
+export interface AnalysisExecutionPlan {
+  nativeFiles: DiscoveredRepositoryFile[];
+  pythonFallbackFiles: DiscoveredRepositoryFile[];
+  requiresPython: boolean;
   scopedFiles: DiscoveredRepositoryFile[];
 }
 
-export const selectAnalysisProvider = (
+export const buildAnalysisExecutionPlan = (
   scopedFiles: DiscoveredRepositoryFile[],
-): AnalysisProviderSelection => ({
-  kind: scopedFiles.some((file) => file.language === "python")
-    ? "python"
-    : "native-typescript",
-  scopedFiles,
-});
+): AnalysisExecutionPlan => {
+  const nativeFiles = scopedFiles.filter((file) => file.supportedByNative);
+  const pythonFallbackFiles = scopedFiles.filter(
+    (file) => file.language === "python",
+  );
+
+  return {
+    nativeFiles,
+    pythonFallbackFiles,
+    requiresPython: pythonFallbackFiles.length > 0,
+    scopedFiles,
+  };
+};
 
 export const shouldRequirePythonForScope = (
   scopedFiles: DiscoveredRepositoryFile[],
-): boolean => selectAnalysisProvider(scopedFiles).kind === "python";
+): boolean => buildAnalysisExecutionPlan(scopedFiles).requiresPython;
 
-export const getPythonScopedConfiguration = (
-  config: ResolvedConfiguration,
-): ResolvedConfiguration => ({
-  ...config,
-  includePatterns:
-    config.focusDirs.length === 0
-      ? [...config.includePatterns]
-      : [
-          ...config.includePatterns,
-          ...config.focusDirs.map((focusDir) => `${focusDir}/**`),
-        ],
-});
+export const getPythonParserLanguagesForScope = (
+  scopedFiles: DiscoveredRepositoryFile[],
+): string[] =>
+  buildAnalysisExecutionPlan(scopedFiles).requiresPython ? ["python"] : [];
+
+export const getPythonFallbackRelativePaths = (
+  plan: AnalysisExecutionPlan,
+): string[] => plan.pythonFallbackFiles.map((file) => file.path).sort();

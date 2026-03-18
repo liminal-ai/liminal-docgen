@@ -1,10 +1,9 @@
 import { readFileSync } from "node:fs";
 import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-
-import * as agentSdkModule from "../../src/adapters/agent-sdk.js";
 import * as analysisModule from "../../src/analysis/analyze.js";
 import * as environmentModule from "../../src/environment/check.js";
+import * as inferenceRuntimeModule from "../../src/inference/runtime.js";
 import { METADATA_FILE_NAME } from "../../src/metadata/file.js";
 import * as metadataWriterModule from "../../src/metadata/writer.js";
 import { writeMetadata } from "../../src/metadata/writer.js";
@@ -182,7 +181,9 @@ const setupPipelineMocks = (
   });
   const querySpy = vi.spyOn(sdk, "query");
 
-  vi.spyOn(agentSdkModule, "createAgentSDKAdapter").mockReturnValue(sdk);
+  vi.spyOn(inferenceRuntimeModule, "createInferenceRuntime").mockReturnValue(
+    sdk,
+  );
   vi.spyOn(environmentModule, "checkEnvironment").mockResolvedValue(
     ok({
       detectedLanguages: ["typescript"],
@@ -640,7 +641,7 @@ describe("generateDocumentation failure handling", () => {
     ).rejects.toMatchObject({ code: "ENOENT" });
   });
 
-  it("Agent SDK network timeout is surfaced with the failing stage", async () => {
+  it("inference provider timeout is surfaced with the failing stage", async () => {
     const planningRepoPath = createRepo();
     setupPipelineMocks(planningRepoPath, {
       analysis: buildAnalysis(LARGE_PLAN, planningRepoPath),
@@ -649,7 +650,7 @@ describe("generateDocumentation failure handling", () => {
         callOverrides: {
           0: {
             code: "ORCHESTRATION_ERROR",
-            message: "Agent SDK network timeout during planning",
+            message: "Inference provider network timeout during planning",
           },
         },
       },
@@ -667,7 +668,7 @@ describe("generateDocumentation failure handling", () => {
         callOverrides: {
           3: {
             code: "ORCHESTRATION_ERROR",
-            message: "Agent SDK network timeout during overview",
+            message: "Inference provider network timeout during overview",
           },
         },
       },
@@ -685,12 +686,12 @@ describe("generateDocumentation failure handling", () => {
     expect(planningFailure.failedStage).toBe("planning-modules");
     expect(planningFailure.error.details).toMatchObject({
       code: "ORCHESTRATION_ERROR",
-      message: "Agent SDK network timeout during planning",
+      message: "Inference provider network timeout during planning",
     });
     expect(overviewFailure.failedStage).toBe("generating-overview");
     expect(overviewFailure.error.details).toMatchObject({
-      sdkError: {
-        message: "Agent SDK network timeout during overview",
+      providerError: {
+        message: "Inference provider network timeout during overview",
       },
     });
   });

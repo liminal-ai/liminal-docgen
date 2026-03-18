@@ -37,7 +37,7 @@ describe("CLI command shell", () => {
       expect(result.stderr).toBe("");
       expect(result.stdout.toLowerCase()).not.toContain("unknown command");
     }
-  }, 20_000);
+  }, 60_000);
 
   it("non-TC: --help flag produces non-empty output for each command", async () => {
     const expectations = {

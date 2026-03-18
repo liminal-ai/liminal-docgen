@@ -1,6 +1,7 @@
 import type { ZodIssue } from "zod";
 import type {
   InferenceConfiguration,
+  InferenceProviderId,
   ResolvedInferenceConfiguration,
 } from "../inference/types.js";
 
@@ -50,7 +51,7 @@ export type PersistedInferenceAuthConfiguration =
     };
 
 export interface PersistedInferenceConfiguration {
-  provider: "claude-sdk" | "claude-cli" | "openrouter-http";
+  provider: InferenceProviderId;
   auth?: PersistedInferenceAuthConfiguration;
   model?: string;
 }

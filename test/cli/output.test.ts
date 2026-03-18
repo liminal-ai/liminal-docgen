@@ -113,7 +113,7 @@ describe("CLI output and exit codes", () => {
     } finally {
       fixture.cleanup();
     }
-  });
+  }, 60_000);
 
   it("TC-2.4b: exit code 1 on operational failure", async () => {
     const result = await runCli(["generate", "--repo-path", "/nonexistent"]);

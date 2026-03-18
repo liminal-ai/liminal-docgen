@@ -1,7 +1,35 @@
+export type ModuleDocumentationPacketMode = "full-packet" | "summary-only";
+
+export type ModuleStructureDiagramKind = "classDiagram" | "flowchart";
+
+export interface ModuleEntitySummary {
+  name: string;
+  kind: string;
+  role: string;
+  publicEntrypoints: string[];
+  dependsOn: string[];
+  usedBy: string[];
+}
+
+export interface ModuleFlowNote {
+  step: number;
+  actor: string;
+  action: string;
+  output: string;
+}
+
 export interface ModuleGenerationResult {
-  pageContent: string;
   title: string;
   crossLinks: string[];
+  pageContent?: string;
+  packetMode?: ModuleDocumentationPacketMode;
+  overview?: string;
+  responsibilities?: string[];
+  structureDiagramKind?: ModuleStructureDiagramKind;
+  structureDiagram?: string;
+  entityTable?: ModuleEntitySummary[];
+  sequenceDiagram?: string;
+  flowNotes?: ModuleFlowNote[];
 }
 
 export interface OverviewGenerationResult {

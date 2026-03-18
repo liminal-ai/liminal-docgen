@@ -1,11 +1,10 @@
 import { readFileSync } from "node:fs";
 import { mkdir, readFile, stat, utimes, writeFile } from "node:fs/promises";
 import path from "node:path";
-
-import * as agentSdkModule from "../../src/adapters/agent-sdk.js";
 import * as gitModule from "../../src/adapters/git.js";
 import * as analysisModule from "../../src/analysis/analyze.js";
 import * as environmentModule from "../../src/environment/check.js";
+import * as inferenceRuntimeModule from "../../src/inference/runtime.js";
 import { writeMetadata } from "../../src/metadata/writer.js";
 import { generateDocumentation } from "../../src/orchestration/generate.js";
 import { ok } from "../../src/types/common.js";
@@ -61,6 +60,15 @@ const BASE_PLAN: ModulePlan = {
 
 const FIVE_MODULE_PLAN: ModulePlan = {
   modules: Array.from({ length: 5 }, (_, index) => ({
+    components: [`src/module-${index + 1}/index.ts`],
+    description: `Module ${index + 1}`,
+    name: `module-${index + 1}`,
+  })),
+  unmappedComponents: [],
+};
+
+const LARGE_PLAN: ModulePlan = {
+  modules: Array.from({ length: 9 }, (_, index) => ({
     components: [`src/module-${index + 1}/index.ts`],
     description: `Module ${index + 1}`,
     name: `module-${index + 1}`,
@@ -285,7 +293,9 @@ const setupUpdateMocks = ({
     ...sdkConfig,
   });
 
-  vi.spyOn(agentSdkModule, "createAgentSDKAdapter").mockReturnValue(sdk);
+  const createInferenceRuntimeSpy = vi
+    .spyOn(inferenceRuntimeModule, "createInferenceRuntime")
+    .mockReturnValue(sdk);
   vi.spyOn(environmentModule, "checkEnvironment").mockResolvedValue(
     ok({
       detectedLanguages: ["typescript"],
@@ -301,6 +311,7 @@ const setupUpdateMocks = ({
 
   return {
     changedFilesSpy: vi.mocked(gitModule.getChangedFilesBetweenCommits),
+    createInferenceRuntimeSpy,
   };
 };
 
@@ -760,7 +771,7 @@ describe("generateDocumentation update mode", () => {
 
   it("TC-2.5a: new file triggers module regeneration", async () => {
     const repoPath = createRepo();
-    await writePriorOutput(repoPath, BASE_PLAN);
+    const outputPath = await writePriorOutput(repoPath, BASE_PLAN);
     const currentPlan: ModulePlan = {
       ...BASE_PLAN,
       modules: BASE_PLAN.modules.map((module) =>
@@ -787,11 +798,18 @@ describe("generateDocumentation update mode", () => {
     );
 
     expect(corePage).toContain("src/core/new-worker.ts");
+    expect(result.overviewRegenerated).toBe(true);
+    expect(
+      (await stat(path.join(outputPath, "overview.md"))).mtimeMs,
+    ).toBeGreaterThan(FIXED_PRIOR_TIME.getTime());
+    expect(
+      (await stat(path.join(outputPath, "module-tree.json"))).mtimeMs,
+    ).toBeGreaterThan(FIXED_PRIOR_TIME.getTime());
   });
 
   it("TC-2.5b: deleted file triggers module regeneration", async () => {
     const repoPath = createRepo();
-    await writePriorOutput(repoPath, BASE_PLAN);
+    const outputPath = await writePriorOutput(repoPath, BASE_PLAN);
     const currentPlan: ModulePlan = {
       ...BASE_PLAN,
       modules: BASE_PLAN.modules.map((module) =>
@@ -820,6 +838,10 @@ describe("generateDocumentation update mode", () => {
     );
 
     expect(apiPage).not.toContain("src/api/client.ts");
+    expect(result.overviewRegenerated).toBe(true);
+    expect(
+      (await stat(path.join(outputPath, "overview.md"))).mtimeMs,
+    ).toBeGreaterThan(FIXED_PRIOR_TIME.getTime());
   });
 
   it("TC-2.5c: relationship change affects both sides", async () => {
@@ -844,6 +866,32 @@ describe("generateDocumentation update mode", () => {
     const result = expectSuccess(await runUpdate(repoPath));
 
     expect(result.updatedModules).toEqual(["core", "utils"]);
+    expect(result.overviewRegenerated).toBe(true);
+  });
+
+  it("non-TC: relationship impact propagates when the changed file is the target", async () => {
+    const repoPath = createRepo();
+    await writePriorOutput(repoPath, BASE_PLAN);
+    setupUpdateMocks({
+      analysis: buildAnalysis(BASE_PLAN, repoPath, {
+        relationships: [
+          {
+            source: "src/core/index.ts",
+            target: "src/utils/format.ts",
+            type: "import",
+          },
+        ],
+      }),
+      changedFiles: [{ changeType: "modified", path: "src/utils/format.ts" }],
+      sdkConfig: {
+        moduleGeneration: getModuleResponses(BASE_PLAN, ["core", "utils"]),
+      },
+    });
+
+    const result = expectSuccess(await runUpdate(repoPath));
+
+    expect(result.updatedModules).toEqual(["core", "utils"]);
+    expect(result.overviewRegenerated).toBe(true);
   });
 
   it("TC-2.6a: module removed triggers overview regeneration", async () => {
@@ -1082,7 +1130,7 @@ describe("generateDocumentation update mode", () => {
       .mockResolvedValue([
         { changeType: "modified", path: "src/core/index.ts" },
       ]);
-    vi.spyOn(agentSdkModule, "createAgentSDKAdapter").mockReturnValue(
+    vi.spyOn(inferenceRuntimeModule, "createInferenceRuntime").mockReturnValue(
       createMockSDK({
         moduleGeneration: getModuleResponses(BASE_PLAN, ["core"]),
         qualityReview: {
@@ -1151,5 +1199,36 @@ describe("generateDocumentation update mode", () => {
     const result = expectSuccess(await runUpdate(repoPath));
 
     expect(result.updatedModules).toEqual(["core", "utils"]);
+    expect(result.overviewRegenerated).toBe(true);
+  });
+
+  it("non-TC: broad churn in a large plan fails fast and preserves prior output", async () => {
+    const repoPath = createRepo();
+    const outputPath = await writePriorOutput(repoPath, LARGE_PLAN);
+    const modulePath = path.join(outputPath, "module-1.md");
+    const overviewPath = path.join(outputPath, "overview.md");
+    const moduleBefore = (await stat(modulePath)).mtimeMs;
+    const overviewBefore = (await stat(overviewPath)).mtimeMs;
+    const { createInferenceRuntimeSpy } = setupUpdateMocks({
+      analysis: buildAnalysis(LARGE_PLAN, repoPath),
+      changedFiles: [
+        { changeType: "modified", path: "src/module-1/index.ts" },
+        { changeType: "modified", path: "src/module-2/index.ts" },
+        { changeType: "modified", path: "src/module-3/index.ts" },
+        { changeType: "modified", path: "src/module-4/index.ts" },
+        { changeType: "modified", path: "src/module-5/index.ts" },
+      ],
+    });
+
+    const result = expectFailure(await runUpdate(repoPath));
+
+    expect(result.failedStage).toBe("planning-modules");
+    expect(result.error.message).toContain("Run full generation");
+    expect(result.warnings).toEqual(
+      expect.arrayContaining([expect.stringContaining("Run full generation")]),
+    );
+    expect(createInferenceRuntimeSpy).not.toHaveBeenCalled();
+    expect((await stat(modulePath)).mtimeMs).toBe(moduleBefore);
+    expect((await stat(overviewPath)).mtimeMs).toBe(overviewBefore);
   });
 });

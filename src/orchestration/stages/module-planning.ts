@@ -58,7 +58,7 @@ export const planModules = async (
     if (!parsedPlan.success) {
       return err(
         "ORCHESTRATION_ERROR",
-        "Agent SDK returned a module plan that does not match the expected schema",
+        "Inference provider returned a module plan that does not match the expected schema",
         {
           rawResponse: result.value.output,
           validationErrors: parsedPlan.error.flatten(),

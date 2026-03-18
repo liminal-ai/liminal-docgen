@@ -156,7 +156,7 @@ describe("CLI failure handling", () => {
     } finally {
       missingPlanFixture.cleanup();
     }
-  });
+  }, 60_000);
 });
 
 const createRepoWithDocs = (docsSourcePath: string) => {

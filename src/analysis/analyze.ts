@@ -14,11 +14,12 @@ import {
   createDiscoveryScope,
   discoverRepositoryFiles,
 } from "./file-discovery.js";
+import { mergeRawAnalysisOutputs } from "./merge.js";
 import { runNativeAnalysis } from "./native.js";
 import { normalize } from "./normalizer.js";
 import {
-  getPythonScopedConfiguration,
-  selectAnalysisProvider,
+  buildAnalysisExecutionPlan,
+  getPythonFallbackRelativePaths,
 } from "./provider.js";
 
 export const analyzeRepository = async (
@@ -46,18 +47,30 @@ export const analyzeRepository = async (
       options.repoPath,
       createDiscoveryScope(configurationResult.value),
     );
-    const providerSelection = selectAnalysisProvider(scopedFiles);
-    const raw =
-      providerSelection.kind === "python"
-        ? await runAnalysis(
+    const executionPlan = buildAnalysisExecutionPlan(scopedFiles);
+    const outputs = await Promise.all([
+      executionPlan.nativeFiles.length > 0
+        ? runNativeAnalysis(
             options.repoPath,
-            getPythonScopedConfiguration(configurationResult.value),
-          )
-        : await runNativeAnalysis(
-            options.repoPath,
-            providerSelection.scopedFiles,
+            executionPlan.nativeFiles,
             configurationResult.value,
-          );
+          )
+        : Promise.resolve(null),
+      executionPlan.pythonFallbackFiles.length > 0
+        ? runAnalysis(
+            options.repoPath,
+            getPythonFallbackRelativePaths(executionPlan),
+          )
+        : Promise.resolve(null),
+    ]);
+    const raw = mergeRawAnalysisOutputs(
+      options.repoPath,
+      scopedFiles,
+      executionPlan,
+      outputs.filter(
+        (value): value is NonNullable<typeof value> => value !== null,
+      ),
+    );
     const normalized = normalize(raw, configurationResult.value);
     const commitHash = await getHeadCommitHash(options.repoPath);
 

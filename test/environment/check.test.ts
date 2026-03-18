@@ -96,12 +96,12 @@ describe("checkEnvironment", () => {
     );
   });
 
-  it("TC-1.2b: missing TS parser identified by name", async () => {
+  it("TC-1.2b: mixed repos only require the Python parser for fallback scope", async () => {
     const repoPath = createGitFixture(REPOS.multiLang);
 
     vi.spyOn(pythonAdapter, "isPythonAvailable").mockResolvedValue(true);
     vi.spyOn(pythonAdapter, "isTreeSitterLanguageAvailable").mockImplementation(
-      async (language) => language !== "typescript",
+      async (language) => language !== "python",
     );
     vi.spyOn(gitAdapter, "isGitAvailable").mockResolvedValue(true);
 
@@ -113,7 +113,7 @@ describe("checkEnvironment", () => {
       expect(value.findings).toContainEqual(
         expect.objectContaining({
           category: "missing-dependency",
-          dependencyName: expect.stringContaining("typescript"),
+          dependencyName: "tree-sitter-python",
           severity: "warning",
         }),
       );
@@ -192,6 +192,25 @@ describe("checkEnvironment", () => {
       );
 
       expect(value.detectedLanguages).toEqual(["python", "typescript"]);
+    } finally {
+      cleanupTempDir(path.dirname(repoPath));
+    }
+  });
+
+  it("mixed repo focused to TypeScript does not require Python", async () => {
+    const repoPath = createGitFixture(REPOS.multiLang);
+
+    vi.spyOn(pythonAdapter, "isPythonAvailable").mockResolvedValue(false);
+    vi.spyOn(gitAdapter, "isGitAvailable").mockResolvedValue(true);
+
+    try {
+      const value = expectEnvironmentCheck(
+        await checkEnvironment({ focusDirs: ["src"], repoPath }),
+      );
+
+      expect(value.findings).toEqual([]);
+      expect(value.detectedLanguages).toEqual(["typescript"]);
+      expect(value.passed).toBe(true);
     } finally {
       cleanupTempDir(path.dirname(repoPath));
     }
@@ -353,6 +372,34 @@ describe("checkEnvironment", () => {
       expect(value.passed).toBe(true);
     } finally {
       cleanupTempDir(path.dirname(repoPath));
+    }
+  });
+
+  it("openrouter inference check includes instability warning without failing", async () => {
+    vi.spyOn(pythonAdapter, "isPythonAvailable").mockResolvedValue(true);
+    vi.spyOn(gitAdapter, "isGitAvailable").mockResolvedValue(true);
+    process.env.OPENROUTER_API_KEY = "test-openrouter-key";
+
+    try {
+      const value = expectEnvironmentCheck(
+        await checkEnvironment({
+          inference: {
+            auth: { apiKeyEnvVar: "OPENROUTER_API_KEY", mode: "env" },
+            provider: "openrouter-http",
+          },
+        }),
+      );
+
+      expect(value.findings).toContainEqual(
+        expect.objectContaining({
+          category: "environment",
+          message: expect.stringContaining("currently unstable"),
+          severity: "warning",
+        }),
+      );
+      expect(value.passed).toBe(true);
+    } finally {
+      delete process.env.OPENROUTER_API_KEY;
     }
   });
 });

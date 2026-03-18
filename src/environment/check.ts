@@ -4,7 +4,10 @@ import {
   detectLanguagesInScope,
   discoverRepositoryFiles,
 } from "../analysis/file-discovery.js";
-import { shouldRequirePythonForScope } from "../analysis/provider.js";
+import {
+  getPythonParserLanguagesForScope,
+  shouldRequirePythonForScope,
+} from "../analysis/provider.js";
 import { checkInferenceProvider } from "../inference/check.js";
 import { err, ok } from "../types/common.js";
 import type {
@@ -45,8 +48,11 @@ export const checkEnvironment = async (
           requiresPython: shouldRequirePythonForScope(scopedFiles),
         });
 
-        if (shouldRequirePythonForScope(scopedFiles)) {
-          findings.push(...(await checkParsers(detectedLanguages)));
+        const pythonParserLanguages =
+          getPythonParserLanguagesForScope(scopedFiles);
+
+        if (pythonParserLanguages.length > 0) {
+          findings.push(...(await checkParsers(pythonParserLanguages)));
         }
 
         if (request.inference) {

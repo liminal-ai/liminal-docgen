@@ -237,6 +237,81 @@ describe("analyzeRepository", () => {
     expect(result.error.code).toBe("DEPENDENCY_MISSING");
   });
 
+  it("mixed-language repos merge native TypeScript and Python fallback results", async () => {
+    const repoPath = createFixtureRepo(REPOS.multiLang);
+
+    vi.spyOn(pythonAdapter, "getPythonCommand").mockResolvedValue("python3");
+    vi.spyOn(subprocessAdapter, "runSubprocess").mockResolvedValue({
+      exitCode: 0,
+      stderr: "",
+      stdout: JSON.stringify({
+        file_tree: {
+          children: [],
+          name: "repo",
+          path: ".",
+          type: "directory",
+        },
+        functions: [
+          {
+            component_type: "function",
+            depends_on: [],
+            end_line: 2,
+            file_path: "analyzer.py",
+            id: "analyzer.py:summarize",
+            name: "summarize",
+            relative_path: "analyzer.py",
+            start_line: 1,
+          },
+        ],
+        relationships: [],
+        summary: {
+          files: [
+            {
+              language: "python",
+              lines_of_code: 2,
+              path: "analyzer.py",
+              supported: true,
+            },
+          ],
+          files_analyzed: 1,
+          languages_found: ["python"],
+          total_files: 1,
+          unsupported_files: [],
+        },
+      }),
+    });
+
+    const value = expectAnalysis(await analyzeRepository({ repoPath }));
+
+    expect(Object.keys(value.components)).toEqual([
+      "analyzer.py",
+      "src/index.ts",
+    ]);
+    expect(value.summary).toEqual({
+      languagesFound: ["python", "typescript"],
+      languagesSkipped: [],
+      totalComponents: 2,
+      totalFilesAnalyzed: 2,
+      totalRelationships: 0,
+    });
+  });
+
+  it("mixed-language repos scoped to TypeScript do not require Python", async () => {
+    const repoPath = createFixtureRepo(REPOS.multiLang);
+
+    vi.spyOn(pythonAdapter, "getPythonCommand").mockResolvedValue(null);
+
+    const value = expectAnalysis(
+      await analyzeRepository({
+        focusDirs: ["src"],
+        repoPath,
+      }),
+    );
+
+    expect(Object.keys(value.components)).toEqual(["src/index.ts"]);
+    expect(value.summary.languagesFound).toEqual(["typescript"]);
+  });
+
   it("adapter invalid payload shape returns ANALYSIS_ERROR for Python fallback", async () => {
     const repoPath = createFixtureRepo(REPOS.multiLang);
 
@@ -282,5 +357,20 @@ describe("analyzeRepository", () => {
     }
 
     expect(result.error.code).toBe("ANALYSIS_ERROR");
+  }, 60_000);
+
+  it("re-export relationships are preserved for files without direct exports", async () => {
+    const repoPath = createRepo({
+      "src/barrel.ts": "export { greet } from './lib.js';\n",
+      "src/lib.ts": "export function greet(): string {\n  return 'hi';\n}\n",
+    });
+
+    const value = expectAnalysis(await analyzeRepository({ repoPath }));
+
+    expect(value.relationships).toContainEqual({
+      source: "src/barrel.ts",
+      target: "src/lib.ts",
+      type: "usage",
+    });
   });
 });

@@ -10,5 +10,8 @@ export interface AffectedModuleSet {
   unchangedModules: string[];
   unmappableFiles: string[];
   overviewNeedsRegeneration: boolean;
+  moduleTreeNeedsRewrite: boolean;
+  requiresFullRegeneration: boolean;
+  fullRegenerationReason?: string;
   warnings: string[];
 }

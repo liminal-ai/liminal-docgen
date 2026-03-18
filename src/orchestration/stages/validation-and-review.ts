@@ -130,7 +130,7 @@ const runQualityReviewPass = async (
         {
           code: "ORCHESTRATION_ERROR",
           details: {
-            sdkError: reviewResult.error,
+            providerError: reviewResult.error,
           },
           message: "Quality review failed",
         },

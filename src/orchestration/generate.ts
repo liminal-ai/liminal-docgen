@@ -1,14 +1,13 @@
 import { readFile, rm } from "node:fs/promises";
 import path from "node:path";
-
-import {
-  createAgentSDKAdapter,
-  InferenceProviderInitializationError,
-} from "../adapters/agent-sdk.js";
 import {
   getChangedFilesBetweenCommits,
   getHeadCommitHash,
 } from "../adapters/git.js";
+import {
+  createInferenceRuntime,
+  InferenceRuntimeInitializationError,
+} from "../inference/runtime.js";
 import { err } from "../types/common.js";
 import { moduleNameToFileName } from "../types/generation.js";
 import type {
@@ -303,6 +302,27 @@ const runUpdateGeneration = async (
     context.addWarning(warning);
   }
 
+  if (affectedModules.requiresFullRegeneration) {
+    if (affectedModules.fullRegenerationReason) {
+      context.addWarning(affectedModules.fullRegenerationReason);
+    }
+
+    return context.assembleFailureResult(
+      "planning-modules",
+      {
+        code: "ORCHESTRATION_ERROR",
+        message:
+          affectedModules.fullRegenerationReason ??
+          "Incremental update is not trustworthy for the current repository changes. Run full generation to refresh the documentation baseline.",
+      },
+      {
+        commitHash: analysis.commitHash,
+        modulePlan: updatedPlan,
+        outputPath,
+      },
+    );
+  }
+
   const modulesToRegenerate = selectModules(
     updatedPlan,
     affectedModules.modulesToRegenerate,
@@ -410,7 +430,7 @@ const runUpdateGeneration = async (
     context.recordGeneratedFile(overviewResult.value);
   }
 
-  if (affectedModules.overviewNeedsRegeneration) {
+  if (affectedModules.moduleTreeNeedsRewrite) {
     const treeResult = await writeModuleTree(updatedPlan, outputPath);
 
     if (!treeResult.ok) {
@@ -681,13 +701,13 @@ const ensureInferenceProviderInitialized = (
 ): DocumentationRunFailure | null => {
   try {
     context.setInferenceProvider(
-      createAgentSDKAdapter(config.inference, {
+      createInferenceRuntime(config.inference, {
         workingDirectory: config.repoPath,
       }),
     );
     return null;
   } catch (error) {
-    if (error instanceof InferenceProviderInitializationError) {
+    if (error instanceof InferenceRuntimeInitializationError) {
       return context.assembleFailureResult(stage, error.engineError, extra);
     }
 
