@@ -19,9 +19,9 @@ import { cleanupTempDir, createTempDir } from "../helpers/temp.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const DIST_CANCELLATION_PATH = path.resolve(
+const SOURCE_CANCELLATION_PATH = path.resolve(
   __dirname,
-  "../../dist/cli/cancellation.js",
+  "../../src/cli/cancellation.ts",
 );
 
 const tempDirs: string[] = [];
@@ -169,7 +169,7 @@ describe("CLI progress renderer", () => {
         finalizeCancellation,
         installCancellationHandler,
         resetCancellationState
-      } from ${JSON.stringify(pathToFileURL(DIST_CANCELLATION_PATH).href)};
+      } from ${JSON.stringify(pathToFileURL(SOURCE_CANCELLATION_PATH).href)};
 
       resetCancellationState();
       installCancellationHandler();
@@ -191,7 +191,7 @@ describe("CLI progress renderer", () => {
     }>((resolve, reject) => {
       const child = spawn(
         process.execPath,
-        ["--input-type=module", "-e", script],
+        ["--import", "tsx", "--input-type=module", "-e", script],
         {
           stdio: ["ignore", "pipe", "pipe"],
         },
