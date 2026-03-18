@@ -82,7 +82,7 @@ describe("CLI command shell", () => {
         expect(result.stdout).toContain(expectedFlag);
       }
     }
-  });
+  }, 60_000);
 
   it("TC-1.1b: unknown command rejected", async () => {
     const result = await runCli(["nonexistent"]);

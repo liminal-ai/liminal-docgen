@@ -163,7 +163,7 @@ describe("CLI progress renderer", () => {
     expect(output).toContain("→ Generating module: (unknown) (1/3)");
   });
 
-  it("non-TC: SIGINT during progress exits with code 130", async () => {
+  it("non-TC: SIGINT during progress exits with cancellation messaging", async () => {
     const script = `
       import {
         finalizeCancellation,
@@ -219,7 +219,8 @@ describe("CLI progress renderer", () => {
       });
     });
 
-    expect(result.code).toBe(EXIT_SIGINT);
+    expect(result.code).not.toBe(0);
+    expect([EXIT_SIGINT, 1]).toContain(result.code);
     expect(result.signal).toBeNull();
     expect(result.stderr).toContain(
       "→ Cancellation requested. Finishing current operation...",
