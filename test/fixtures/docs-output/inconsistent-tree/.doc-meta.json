@@ -1,0 +1,8 @@
+{
+  "generatedAt": "2026-03-15T12:00:00.000Z",
+  "commitHash": "6666666666666666666666666666666666666666",
+  "outputPath": "docs/wiki",
+  "filesGenerated": ["overview.md", "a.md", "b.md", "e.md"],
+  "componentCount": 3,
+  "mode": "full"
+}

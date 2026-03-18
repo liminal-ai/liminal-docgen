@@ -1,0 +1,244 @@
+{
+  "modules": [
+    {
+      "name": "External Adapters",
+      "description": "Low-level wrappers for external tools and processes: subprocess execution, Git CLI, GitHub CLI, Python runtime, and the Agent SDK interface.",
+      "components": [
+        "code-wiki-gen/src/adapters/subprocess.ts",
+        "code-wiki-gen/src/adapters/git.ts",
+        "code-wiki-gen/src/adapters/gh.ts",
+        "code-wiki-gen/src/adapters/python.ts",
+        "code-wiki-gen/src/adapters/agent-sdk.ts"
+      ]
+    },
+    {
+      "name": "Structural Analysis",
+      "description": "Repository code analysis pipeline: Python-based AST parsing, raw output normalization, and the TypeScript adapter that invokes the analysis script.",
+      "components": [
+        "code-wiki-gen/src/analysis/scripts/analyze_repository.py",
+        "code-wiki-gen/src/analysis/raw-output.ts",
+        "code-wiki-gen/src/analysis/adapter.ts",
+        "code-wiki-gen/src/analysis/normalizer.ts",
+        "code-wiki-gen/src/analysis/analyze.ts"
+      ]
+    },
+    {
+      "name": "Configuration",
+      "description": "Configuration loading, defaults, file-based config resolution, and the CLI config merger that combines CLI args with file/default config.",
+      "components": [
+        "code-wiki-gen/src/config/defaults.ts",
+        "code-wiki-gen/src/config/file-loader.ts",
+        "code-wiki-gen/src/config/resolver.ts",
+        "code-wiki-gen/src/cli/config-merger.ts"
+      ]
+    },
+    {
+      "name": "Environment Checks",
+      "description": "Pre-flight environment validation: detecting available languages, checking runtime dependencies (Git, Python), and verifying tree-sitter parsers.",
+      "components": [
+        "code-wiki-gen/src/environment/check.ts",
+        "code-wiki-gen/src/environment/language-detector.ts",
+        "code-wiki-gen/src/environment/parser-checker.ts",
+        "code-wiki-gen/src/environment/runtime-checker.ts"
+      ]
+    },
+    {
+      "name": "Metadata",
+      "description": "Reading, writing, and validating documentation generation metadata (timestamps, commit hashes, staleness detection).",
+      "components": [
+        "code-wiki-gen/src/metadata/file.ts",
+        "code-wiki-gen/src/metadata/reader.ts",
+        "code-wiki-gen/src/metadata/writer.ts",
+        "code-wiki-gen/src/metadata/validate-shape.ts",
+        "code-wiki-gen/src/metadata/status.ts"
+      ]
+    },
+    {
+      "name": "Prompt Builders",
+      "description": "LLM prompt construction for each generation stage: module clustering, module documentation, overview page, and quality review.",
+      "components": [
+        "code-wiki-gen/src/prompts/clustering.ts",
+        "code-wiki-gen/src/prompts/module-doc.ts",
+        "code-wiki-gen/src/prompts/overview.ts",
+        "code-wiki-gen/src/prompts/quality-review.ts"
+      ]
+    },
+    {
+      "name": "Orchestration",
+      "description": "Core documentation generation pipeline: the main generate function, run context, output path resolution, and all pipeline stages (analysis, planning, generation, review, metadata write, module tree).",
+      "components": [
+        "code-wiki-gen/src/orchestration/generate.ts",
+        "code-wiki-gen/src/orchestration/output-path.ts",
+        "code-wiki-gen/src/orchestration/run-context.ts",
+        "code-wiki-gen/src/orchestration/stages/environment-check.ts",
+        "code-wiki-gen/src/orchestration/stages/structural-analysis.ts",
+        "code-wiki-gen/src/orchestration/stages/resolve-and-validate.ts",
+        "code-wiki-gen/src/orchestration/stages/module-planning.ts",
+        "code-wiki-gen/src/orchestration/stages/module-generation.ts",
+        "code-wiki-gen/src/orchestration/stages/overview-generation.ts",
+        "code-wiki-gen/src/orchestration/stages/module-tree-write.ts",
+        "code-wiki-gen/src/orchestration/stages/metadata-write.ts",
+        "code-wiki-gen/src/orchestration/stages/validation-and-review.ts"
+      ]
+    },
+    {
+      "name": "Incremental Update",
+      "description": "Differential update logic: reading prior generation state and mapping changed files to affected modules for selective regeneration.",
+      "components": [
+        "code-wiki-gen/src/orchestration/update/prior-state.ts",
+        "code-wiki-gen/src/orchestration/update/affected-module-mapper.ts"
+      ]
+    },
+    {
+      "name": "Validation",
+      "description": "Post-generation documentation validation: cross-link checks, file presence, Mermaid diagram syntax, metadata shape, and module tree integrity.",
+      "components": [
+        "code-wiki-gen/src/validation/validate.ts",
+        "code-wiki-gen/src/validation/checks/shared.ts",
+        "code-wiki-gen/src/validation/checks/cross-links.ts",
+        "code-wiki-gen/src/validation/checks/file-presence.ts",
+        "code-wiki-gen/src/validation/checks/mermaid.ts",
+        "code-wiki-gen/src/validation/checks/metadata-shape.ts",
+        "code-wiki-gen/src/validation/checks/module-tree.ts"
+      ]
+    },
+    {
+      "name": "Publish",
+      "description": "Publishing generated documentation to a Git branch and creating a GitHub pull request, including preflight checks, branch management, and PR creation.",
+      "components": [
+        "code-wiki-gen/src/publish/adapters.ts",
+        "code-wiki-gen/src/publish/base-branch-detector.ts",
+        "code-wiki-gen/src/publish/branch-manager.ts",
+        "code-wiki-gen/src/publish/pr-creator.ts",
+        "code-wiki-gen/src/publish/preflight.ts",
+        "code-wiki-gen/src/publish/publish.ts"
+      ]
+    },
+    {
+      "name": "CLI",
+      "description": "Command-line interface: command definitions, human/JSON output formatting, progress rendering, cancellation handling, and exit codes.",
+      "components": [
+        "code-wiki-gen/src/cli.ts",
+        "code-wiki-gen/src/cli/cancellation.ts",
+        "code-wiki-gen/src/cli/exit-codes.ts",
+        "code-wiki-gen/src/cli/output.ts",
+        "code-wiki-gen/src/cli/progress.ts",
+        "code-wiki-gen/src/commands/analyze.ts",
+        "code-wiki-gen/src/commands/check.ts",
+        "code-wiki-gen/src/commands/generate.ts",
+        "code-wiki-gen/src/commands/publish.ts",
+        "code-wiki-gen/src/commands/status.ts",
+        "code-wiki-gen/src/commands/update.ts",
+        "code-wiki-gen/src/commands/validate.ts"
+      ]
+    },
+    {
+      "name": "Contracts and Schemas",
+      "description": "Zod schemas for runtime validation of data structures exchanged between pipeline stages (analysis output, configuration, generation results, metadata, planning, publish, quality review, validation).",
+      "components": [
+        "code-wiki-gen/src/contracts/analysis.ts",
+        "code-wiki-gen/src/contracts/configuration.ts",
+        "code-wiki-gen/src/contracts/generation.ts",
+        "code-wiki-gen/src/contracts/metadata.ts",
+        "code-wiki-gen/src/contracts/planning.ts",
+        "code-wiki-gen/src/contracts/publish.ts",
+        "code-wiki-gen/src/contracts/quality-review.ts",
+        "code-wiki-gen/src/contracts/validation.ts"
+      ]
+    },
+    {
+      "name": "Type Definitions",
+      "description": "TypeScript type interfaces and utility types shared across the codebase: analysis, CLI, common result types, configuration, environment, generation, metadata, orchestration, planning, publish, quality review, update, and validation.",
+      "components": [
+        "code-wiki-gen/src/types/analysis.ts",
+        "code-wiki-gen/src/types/cli.ts",
+        "code-wiki-gen/src/types/common.ts",
+        "code-wiki-gen/src/types/configuration.ts",
+        "code-wiki-gen/src/types/environment.ts",
+        "code-wiki-gen/src/types/generation.ts",
+        "code-wiki-gen/src/types/index.ts",
+        "code-wiki-gen/src/types/metadata.ts",
+        "code-wiki-gen/src/types/orchestration.ts",
+        "code-wiki-gen/src/types/planning.ts",
+        "code-wiki-gen/src/types/publish.ts",
+        "code-wiki-gen/src/types/quality-review.ts",
+        "code-wiki-gen/src/types/update.ts",
+        "code-wiki-gen/src/types/validation.ts"
+      ]
+    },
+    {
+      "name": "Shared Utilities",
+      "description": "Small shared utilities: error message extraction, language-to-extension mapping, and the package entry point.",
+      "components": [
+        "code-wiki-gen/src/errors.ts",
+        "code-wiki-gen/src/languages.ts",
+        "code-wiki-gen/src/index.ts"
+      ]
+    },
+    {
+      "name": "Test Helpers",
+      "description": "Shared test infrastructure: mock Agent SDK, CLI runner, fixture paths, Git helpers, live fixture repos, publish test doubles, story-specific fixtures, and temp directory management.",
+      "components": [
+        "code-wiki-gen/test/helpers/agent-sdk-mock.ts",
+        "code-wiki-gen/test/helpers/cli-runner.ts",
+        "code-wiki-gen/test/helpers/fixtures.ts",
+        "code-wiki-gen/test/helpers/git.ts",
+        "code-wiki-gen/test/helpers/live-fixtures.ts",
+        "code-wiki-gen/test/helpers/publish-fixtures.ts",
+        "code-wiki-gen/test/helpers/story5-fixtures.ts",
+        "code-wiki-gen/test/helpers/temp.ts"
+      ]
+    },
+    {
+      "name": "Test Fixtures",
+      "description": "Static fixture repositories used by tests: multi-language, no-git, and valid-TypeScript sample projects.",
+      "components": [
+        "code-wiki-gen/test/fixtures/repos/multi-lang/analyzer.py",
+        "code-wiki-gen/test/fixtures/repos/multi-lang/src/index.ts",
+        "code-wiki-gen/test/fixtures/repos/no-git/src/index.ts",
+        "code-wiki-gen/test/fixtures/repos/valid-ts/src/auth.ts",
+        "code-wiki-gen/test/fixtures/repos/valid-ts/src/index.ts",
+        "code-wiki-gen/test/fixtures/repos/valid-ts/src/session.ts"
+      ]
+    },
+    {
+      "name": "Unit Tests",
+      "description": "Unit test suites covering analysis, CLI output/commands/progress, configuration resolution, environment checks, metadata status, orchestration stages, prompt builders, and validation.",
+      "components": [
+        "code-wiki-gen/test/analysis/analyze.test.ts",
+        "code-wiki-gen/test/cli/check-error-output.test.ts",
+        "code-wiki-gen/test/cli/commands.test.ts",
+        "code-wiki-gen/test/cli/failure.test.ts",
+        "code-wiki-gen/test/cli/output.test.ts",
+        "code-wiki-gen/test/cli/progress.test.ts",
+        "code-wiki-gen/test/cli/smoke.test.ts",
+        "code-wiki-gen/test/config/resolver.test.ts",
+        "code-wiki-gen/test/environment/check.test.ts",
+        "code-wiki-gen/test/metadata/status.test.ts",
+        "code-wiki-gen/test/orchestration/failure.test.ts",
+        "code-wiki-gen/test/orchestration/generate.test.ts",
+        "code-wiki-gen/test/orchestration/module-planning.test.ts",
+        "code-wiki-gen/test/orchestration/progress.test.ts",
+        "code-wiki-gen/test/orchestration/pure-functions.test.ts",
+        "code-wiki-gen/test/orchestration/quality-review.test.ts",
+        "code-wiki-gen/test/orchestration/update.test.ts",
+        "code-wiki-gen/test/prompts/prompt-builders.test.ts",
+        "code-wiki-gen/test/validation/validate.test.ts"
+      ]
+    },
+    {
+      "name": "Integration and Live Tests",
+      "description": "Integration tests (determinism, end-to-end, failure modes, publish, SDK contract) and live tests that run against real infrastructure.",
+      "components": [
+        "code-wiki-gen/test/integration/determinism.test.ts",
+        "code-wiki-gen/test/integration/e2e.test.ts",
+        "code-wiki-gen/test/integration/failure.test.ts",
+        "code-wiki-gen/test/integration/publish.test.ts",
+        "code-wiki-gen/test/integration/sdk-contract.test.ts",
+        "code-wiki-gen/test/live/generate.live.test.ts",
+        "code-wiki-gen/test/live/publish.live.test.ts"
+      ]
+    }
+  ],
+  "unmappedComponents": []
+}

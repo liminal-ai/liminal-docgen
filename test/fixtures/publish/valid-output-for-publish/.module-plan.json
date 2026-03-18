@@ -1,0 +1,14 @@
+{
+  "modules": [
+    {
+      "name": "Authentication",
+      "components": ["login.ts", "logout.ts"],
+      "outputFile": "auth.md"
+    },
+    {
+      "name": "Data Layer",
+      "components": ["store.ts", "cache.ts"],
+      "outputFile": "data-layer.md"
+    }
+  ]
+}

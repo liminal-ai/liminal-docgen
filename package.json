@@ -1,0 +1,89 @@
+{
+  "name": "liminal-docgen",
+  "version": "0.1.0",
+  "description": "CLI and library for repository-level documentation generation with analysis, validation, update, and publish flows.",
+  "license": "MIT",
+  "author": "Lee Moore",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/liminal-ai/liminal-docs.git"
+  },
+  "homepage": "https://github.com/liminal-ai/liminal-docs#readme",
+  "bugs": {
+    "url": "https://github.com/liminal-ai/liminal-docs/issues"
+  },
+  "keywords": [
+    "documentation",
+    "cli",
+    "code-analysis",
+    "typescript",
+    "developer-tools",
+    "wiki"
+  ],
+  "packageManager": "npm@11.11.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "bin": {
+    "liminal-docgen": "./dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "clean": "node scripts/clean-dist.mjs",
+    "prebuild": "npm run clean",
+    "build": "tsc -p tsconfig.build.json",
+    "postbuild": "node scripts/postbuild.mjs",
+    "prepack": "npm run build",
+    "prepublishOnly": "npm run verify:release",
+    "dev": "tsx src/cli.ts",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "test:live": "npm run build && vitest run --config vitest.live.config.ts",
+    "pack:dry-run": "npm pack --dry-run --json",
+    "pack:check": "node scripts/pack-check.mjs",
+    "smoke:pack": "node scripts/smoke-pack.mjs",
+    "guard:no-test-changes": "tsx scripts/guard-no-test-changes.ts",
+    "red-verify": "biome check . && tsc --noEmit",
+    "verify": "biome check . && tsc --noEmit && vitest run",
+    "verify-live": "biome check . && tsc --noEmit && npm run test:live",
+    "green-verify": "biome check . && tsc --noEmit && vitest run && tsx scripts/guard-no-test-changes.ts",
+    "verify-all": "biome check . && tsc --noEmit && vitest run && npm run test:integration",
+    "verify:release": "npm run lint && npm run typecheck && npm test && npm run test:integration && npm run build && npm run pack:check && npm run smoke:pack"
+  },
+  "dependencies": {
+    "citty": "0.2.1",
+    "typescript": "5.9.3",
+    "zod": "4.3.6"
+  },
+  "optionalDependencies": {
+    "@anthropic-ai/claude-agent-sdk": "0.2.76"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.4.7",
+    "@types/node": "24.12.0",
+    "@vitest/coverage-v8": "4.1.0",
+    "tsx": "4.21.0",
+    "vitest": "4.1.0"
+  }
+}

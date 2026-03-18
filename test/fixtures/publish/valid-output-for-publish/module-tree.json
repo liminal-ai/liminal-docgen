@@ -1,0 +1,6 @@
+{
+  "modules": [
+    { "name": "Authentication", "file": "auth.md" },
+    { "name": "Data Layer", "file": "data-layer.md" }
+  ]
+}

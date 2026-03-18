@@ -1,0 +1,74 @@
+[
+  {
+    "name": "CLI",
+    "page": "cli.md"
+  },
+  {
+    "name": "Configuration",
+    "page": "configuration.md"
+  },
+  {
+    "name": "Contracts and Schemas",
+    "page": "contracts-and-schemas.md"
+  },
+  {
+    "name": "Environment Checks",
+    "page": "environment-checks.md"
+  },
+  {
+    "name": "External Adapters",
+    "page": "external-adapters.md"
+  },
+  {
+    "name": "Incremental Update",
+    "page": "incremental-update.md"
+  },
+  {
+    "name": "Integration and Live Tests",
+    "page": "integration-and-live-tests.md"
+  },
+  {
+    "name": "Metadata",
+    "page": "metadata.md"
+  },
+  {
+    "name": "Orchestration",
+    "page": "orchestration.md"
+  },
+  {
+    "name": "Prompt Builders",
+    "page": "prompt-builders.md"
+  },
+  {
+    "name": "Publish",
+    "page": "publish.md"
+  },
+  {
+    "name": "Shared Utilities",
+    "page": "shared-utilities.md"
+  },
+  {
+    "name": "Structural Analysis",
+    "page": "structural-analysis.md"
+  },
+  {
+    "name": "Test Fixtures",
+    "page": "test-fixtures.md"
+  },
+  {
+    "name": "Test Helpers",
+    "page": "test-helpers.md"
+  },
+  {
+    "name": "Type Definitions",
+    "page": "type-definitions.md"
+  },
+  {
+    "name": "Unit Tests",
+    "page": "unit-tests.md"
+  },
+  {
+    "name": "Validation",
+    "page": "validation.md"
+  }
+]

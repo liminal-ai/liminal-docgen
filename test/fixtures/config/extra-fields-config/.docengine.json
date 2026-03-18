@@ -1,0 +1,5 @@
+{
+  "outputPath": "docs/generated",
+  "excludePatterns": ["**/coverage/**"],
+  "futureField": true
+}

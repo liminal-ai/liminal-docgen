@@ -1,0 +1,5 @@
+{
+  "pageContent": "# API\n\nThe API module contains adapter boundaries for git, Python analysis, and subprocess execution.\n\n## Key Components\n\n- `src/adapters/git.ts`\n- `src/adapters/python.ts`\n- `src/adapters/subprocess.ts`\n\n## Responsibilities\n\n- Encapsulates shell and Python runtime interactions.\n- Keeps orchestration logic isolated from external process details.\n",
+  "title": "API",
+  "crossLinks": ["core", "utils"]
+}

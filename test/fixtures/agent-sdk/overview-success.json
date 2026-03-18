@@ -1,0 +1,4 @@
+{
+  "content": "# Repository Overview\n\nThis repository is organized into three primary modules: Core, API, and Utils.\n\n```mermaid\ngraph TD\n  Core --> API\n  Core --> Utils\n  API --> Utils\n```\n\n## Module Summary\n\n- Core coordinates configuration and analysis.\n- API wraps external integrations.\n- Utils provides shared types and helpers.\n",
+  "mermaidDiagram": "graph TD\n  Core --> API\n  Core --> Utils\n  API --> Utils"
+}

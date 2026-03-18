@@ -1,0 +1,5 @@
+[
+  { "name": "Auth", "page": "auth.md" },
+  { "name": "Session", "page": "session.md" },
+  { "name": "Storage", "page": "storage.md" }
+]

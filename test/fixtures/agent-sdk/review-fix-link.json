@@ -1,0 +1,6 @@
+[
+  {
+    "filePath": "overview.md",
+    "newContent": "# Repository Overview\n\nSee the [Core module](./core.md), [API module](./api.md), and [Utils module](./utils.md) for implementation details.\n"
+  }
+]

@@ -1,0 +1,8 @@
+Liminal DocGen is a TypeScript rewrite and port of ideas and workflows from
+CodeWiki:
+
+https://github.com/FSoft-AI4Code/CodeWiki
+
+The upstream project is MIT licensed. This repository keeps Liminal DocGen
+under the MIT License and acknowledges CodeWiki as the upstream basis for this
+rewrite.

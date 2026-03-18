@@ -1,0 +1,40 @@
+{
+  "modules": [
+    {
+      "name": "core",
+      "description": "Core engine functionality including configuration, analysis, and orchestration",
+      "components": [
+        "src/index.ts",
+        "src/config/resolver.ts",
+        "src/config/defaults.ts",
+        "src/config/file-loader.ts",
+        "src/analysis/analyze.ts",
+        "src/analysis/normalizer.ts",
+        "src/analysis/adapter.ts"
+      ]
+    },
+    {
+      "name": "api",
+      "description": "API adapters and external integrations",
+      "components": [
+        "src/adapters/git.ts",
+        "src/adapters/python.ts",
+        "src/adapters/subprocess.ts"
+      ]
+    },
+    {
+      "name": "utils",
+      "description": "Utility functions and shared types",
+      "components": [
+        "src/errors.ts",
+        "src/languages.ts",
+        "src/types/common.ts",
+        "src/types/configuration.ts"
+      ]
+    }
+  ],
+  "unmappedComponents": [
+    "src/analysis/raw-output.ts",
+    "src/analysis/scripts/analyze_repository.py"
+  ]
+}

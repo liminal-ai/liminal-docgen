@@ -1,0 +1,3 @@
+# Auth
+
+Auth documentation.

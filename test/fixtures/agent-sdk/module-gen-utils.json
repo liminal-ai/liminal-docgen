@@ -1,0 +1,5 @@
+{
+  "pageContent": "# Utils\n\nThe Utils module groups shared error definitions, language metadata, and cross-cutting type declarations.\n\n## Key Components\n\n- `src/errors.ts`\n- `src/languages.ts`\n- `src/types/common.ts`\n- `src/types/configuration.ts`\n\n## Responsibilities\n\n- Defines shared error/result primitives.\n- Centralizes reusable metadata and type contracts.\n",
+  "title": "Utils",
+  "crossLinks": ["core"]
+}

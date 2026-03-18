@@ -1,0 +1,8 @@
+{
+  "generatedAt": "2026-03-15T12:00:00.000Z",
+  "commitHash": "3333333333333333333333333333333333333333",
+  "outputPath": "docs/wiki",
+  "filesGenerated": ["auth.md", "session.md", "storage.md"],
+  "componentCount": 3,
+  "mode": "full"
+}

@@ -1,0 +1,4 @@
+{
+  "outputPath": "docs/generated",
+  "excludePatterns": ["**/dist/**", "**/*.snap"]
+}

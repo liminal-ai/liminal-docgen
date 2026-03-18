@@ -1,0 +1,5 @@
+{
+  "pageContent": "# Core\n\nThe Core module owns the engine entry points, configuration resolution, and structural analysis workflow.\n\n## Key Components\n\n- `src/index.ts`\n- `src/config/resolver.ts`\n- `src/analysis/analyze.ts`\n\n## Responsibilities\n\n- Resolves runtime configuration before execution.\n- Normalizes analysis output into engine-native types.\n- Coordinates the top-level SDK surface.\n",
+  "title": "Core",
+  "crossLinks": ["api", "utils"]
+}

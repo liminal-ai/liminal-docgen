@@ -1,0 +1,5 @@
+# Session
+
+```mermaid
+Session --> Storage
+```

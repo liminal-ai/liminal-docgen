@@ -1,0 +1,31 @@
+{
+  "generatedAt": "2026-03-16T10:43:04.364Z",
+  "commitHash": "2e89c5e0b68031587e807f3735687f213cba4b1e",
+  "outputPath": "code-wiki-gen/docs/wiki",
+  "filesGenerated": [
+    ".doc-meta.json",
+    ".module-plan.json",
+    "cli.md",
+    "configuration.md",
+    "contracts-and-schemas.md",
+    "environment-checks.md",
+    "external-adapters.md",
+    "incremental-update.md",
+    "integration-and-live-tests.md",
+    "metadata.md",
+    "module-tree.json",
+    "orchestration.md",
+    "overview.md",
+    "prompt-builders.md",
+    "publish.md",
+    "shared-utilities.md",
+    "structural-analysis.md",
+    "test-fixtures.md",
+    "test-helpers.md",
+    "type-definitions.md",
+    "unit-tests.md",
+    "validation.md"
+  ],
+  "componentCount": 131,
+  "mode": "full"
+}

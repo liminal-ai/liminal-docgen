@@ -1,0 +1,19 @@
+{
+  "modules": [
+    {
+      "name": "core",
+      "description": "Core runtime pieces",
+      "components": [
+        "src/index.ts",
+        "src/config/resolver.ts",
+        "src/types/common.ts"
+      ]
+    },
+    {
+      "name": "shared",
+      "description": "Shared helpers and cross-cutting types",
+      "components": ["src/types/common.ts", "src/languages.ts"]
+    }
+  ],
+  "unmappedComponents": ["src/analysis/raw-output.ts"]
+}
