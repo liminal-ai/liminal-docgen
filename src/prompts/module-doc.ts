@@ -24,6 +24,8 @@ Do not invent classes, functions, interfaces, collaborators, or runtime flows th
 For packetMode:
 - use "full-packet" only when the supplied context supports both a meaningful structural view and a meaningful representative flow
 - otherwise use "summary-only"
+- if you choose "full-packet", you must provide a non-empty structureDiagram, entityTable, sequenceDiagram, and flowNotes
+- if a meaningful sequence diagram is not possible, you must return "summary-only"
 
 For structureDiagram:
 - use Mermaid classDiagram when the class/interface/type shape is the clearest view
@@ -75,6 +77,10 @@ Packet recommendation:
 - recommended structure diagram kind: ${selection.preferredStructureDiagramKind}
 - recommend sequence diagram: ${selection.recommendSequenceDiagram ? "yes" : "no"}
 - reason: ${selection.selectionReason}
+- structure score: ${selection.structureScore}
+- flow score: ${selection.flowScore}
+- conservative mode: ${selection.conservativeMode ? "yes" : "no"}
+${selection.downgradeReason ? `- downgrade reason: ${selection.downgradeReason}` : ""}
 
 Components:
 ${componentSection}

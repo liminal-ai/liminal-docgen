@@ -250,7 +250,7 @@ Field reference:
   - Optional env var name override for env-based API key flows
 - `inference.model`
   - Optional provider model override
-  - When omitted, providers use their normal default selection behavior
+  - When omitted, `claude-sdk` and `claude-cli` default to `sonnet[1m]`
   - For `claude-sdk` and `claude-cli`, this value is a Claude provider-specific model selector such as `default`, `sonnet`, or `opus`
   - For `openrouter-http`, this value is an OpenRouter model slug such as `openai/gpt-4o-mini`
 

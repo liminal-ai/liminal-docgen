@@ -515,6 +515,149 @@ describe("generateDocumentation", () => {
     expect(corePage).toContain("bootstrapAuth");
   });
 
+  it("repairs recoverable full-packet mismatches instead of failing the run", async () => {
+    const repoPath = createRepo();
+    setupPipelineMocks(repoPath, {
+      sdkConfig: {
+        moduleGeneration: [
+          {
+            output: {
+              crossLinks: [],
+              entityTable: [
+                {
+                  dependsOn: [],
+                  kind: "class",
+                  name: "Analyzer",
+                  publicEntrypoints: ["src/analyzer.ts:Analyzer"],
+                  role: "Primary analyzer boundary.",
+                  usedBy: [],
+                },
+              ],
+              flowNotes: [],
+              overview: "Analyzes structured module packets.",
+              packetMode: "full-packet",
+              responsibilities: ["Analyze module packet contracts"],
+              sequenceDiagram: "",
+              structureDiagram: "flowchart TD\n  Analyzer --> Packet",
+              structureDiagramKind: "flowchart",
+              title: "API",
+            },
+            usage: { inputTokens: 1200, outputTokens: 700 },
+          },
+          {
+            output: {
+              crossLinks: [],
+              overview: "Analyzes structured module packets.",
+              packetMode: "summary-only",
+              responsibilities: ["Analyze module packet contracts"],
+              title: "API",
+            },
+            usage: { inputTokens: 600, outputTokens: 300 },
+          },
+          {
+            output: CORE_PAGE,
+            usage: { inputTokens: 1400, outputTokens: 900 },
+          },
+          {
+            output: UTILS_PAGE,
+            usage: { inputTokens: 1100, outputTokens: 650 },
+          },
+        ],
+      },
+    });
+
+    const result = expectSuccess(
+      await generateDocumentation(withInference({ mode: "full", repoPath })),
+    );
+    const apiPage = await readFile(
+      path.join(result.outputPath, "api.md"),
+      "utf8",
+    );
+
+    expect(apiPage).toContain("## Overview");
+    expect(apiPage).toContain("## Responsibilities");
+    expect(apiPage).not.toContain("## Key Flow");
+    expect(apiPage).not.toContain("sequenceDiagram");
+  });
+
+  it("coerces repeated packet mismatches to summary-only after repair fails", async () => {
+    const repoPath = createRepo();
+    setupPipelineMocks(repoPath, {
+      sdkConfig: {
+        moduleGeneration: [
+          {
+            output: {
+              crossLinks: [],
+              entityTable: [
+                {
+                  dependsOn: [],
+                  kind: "class",
+                  name: "Analyzer",
+                  publicEntrypoints: ["src/analyzer.ts:Analyzer"],
+                  role: "Primary analyzer boundary.",
+                  usedBy: [],
+                },
+              ],
+              flowNotes: [],
+              overview: "Analyzes structured module packets.",
+              packetMode: "full-packet",
+              responsibilities: ["Analyze module packet contracts"],
+              sequenceDiagram: "",
+              structureDiagram: "flowchart TD\n  Analyzer --> Packet",
+              structureDiagramKind: "flowchart",
+              title: "API",
+            },
+            usage: { inputTokens: 1200, outputTokens: 700 },
+          },
+          {
+            output: {
+              crossLinks: [],
+              entityTable: [
+                {
+                  dependsOn: [],
+                  kind: "class",
+                  name: "Analyzer",
+                  publicEntrypoints: ["src/analyzer.ts:Analyzer"],
+                  role: "Primary analyzer boundary.",
+                  usedBy: [],
+                },
+              ],
+              flowNotes: [],
+              overview: "Analyzes structured module packets.",
+              packetMode: "full-packet",
+              responsibilities: ["Analyze module packet contracts"],
+              sequenceDiagram: "",
+              structureDiagram: "flowchart TD\n  Analyzer --> Packet",
+              structureDiagramKind: "flowchart",
+              title: "API",
+            },
+            usage: { inputTokens: 600, outputTokens: 300 },
+          },
+          {
+            output: CORE_PAGE,
+            usage: { inputTokens: 1400, outputTokens: 900 },
+          },
+          {
+            output: UTILS_PAGE,
+            usage: { inputTokens: 1100, outputTokens: 650 },
+          },
+        ],
+      },
+    });
+
+    const result = expectSuccess(
+      await generateDocumentation(withInference({ mode: "full", repoPath })),
+    );
+    const apiPage = await readFile(
+      path.join(result.outputPath, "api.md"),
+      "utf8",
+    );
+
+    expect(apiPage).toContain("## Overview");
+    expect(apiPage).not.toContain("## Structure Diagram");
+    expect(apiPage).not.toContain("## Key Flow");
+  });
+
   it("TC-1.6a: module tree matches plan", async () => {
     const result = await runHappyPath();
 

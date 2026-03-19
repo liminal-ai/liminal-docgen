@@ -43,8 +43,21 @@ describe("inference configuration helpers", () => {
       }),
     ).toEqual({
       auth: { mode: "oauth" },
-      model: undefined,
+      model: "sonnet[1m]",
       provider: "claude-cli",
+    });
+  });
+
+  it("applies the shared Claude default model when no model override is provided", () => {
+    expect(
+      resolveInferenceConfiguration({
+        auth: { mode: "oauth" },
+        provider: "claude-sdk",
+      }),
+    ).toEqual({
+      auth: { mode: "oauth" },
+      model: "sonnet[1m]",
+      provider: "claude-sdk",
     });
   });
 });

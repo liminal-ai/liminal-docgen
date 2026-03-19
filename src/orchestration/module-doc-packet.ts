@@ -19,10 +19,14 @@ const HIGH_VALUE_MODULE_NAME_PATTERNS = [
 ];
 
 export interface ModuleDocumentationSelection {
+  conservativeMode: boolean;
+  downgradeReason?: string;
+  flowScore: number;
   packetMode: ModuleDocumentationPacketMode;
   preferredStructureDiagramKind: ModuleStructureDiagramKind;
   recommendSequenceDiagram: boolean;
   selectionReason: string;
+  structureScore: number;
 }
 
 export interface ModuleDocumentationFacts {
@@ -48,33 +52,35 @@ export interface ModuleFlowCandidate {
   action: string;
   output: string;
   target: string;
+  weight: number;
 }
 
 export const selectModuleDocumentationPacket = (
   module: PlannedModule,
-  _modulePlan: ModulePlan,
+  modulePlan: ModulePlan,
   analysis: RepositoryAnalysis,
 ): ModuleDocumentationSelection => {
-  const moduleRelationshipCount = analysis.relationships.filter(
-    (relationship) =>
-      module.components.includes(relationship.source) ||
-      module.components.includes(relationship.target),
-  ).length;
-  const exportedEntityCount = module.components.reduce(
-    (total, componentPath) =>
-      total + (analysis.components[componentPath]?.exportedSymbols.length ?? 0),
-    0,
-  );
+  const facts = buildModuleDocumentationFacts(module, modulePlan, analysis);
   const isHighValueModule = HIGH_VALUE_MODULE_NAME_PATTERNS.some((pattern) =>
     pattern.test(module.name),
   );
-  const packetMode: ModuleDocumentationPacketMode =
-    isHighValueModule ||
-    module.components.length >= 3 ||
-    exportedEntityCount >= 3 ||
-    moduleRelationshipCount >= 2
-      ? "full-packet"
-      : "summary-only";
+  const conservativeMode =
+    analysis.summary.totalComponents >= 150 || modulePlan.modules.length >= 20;
+  const metrics = buildSelectionMetrics(
+    module,
+    analysis,
+    facts,
+    isHighValueModule,
+  );
+  const structureThreshold = conservativeMode ? 4 : 3;
+  const flowThreshold = conservativeMode ? 3 : 2;
+  const qualifiesForFullPacket =
+    metrics.structureScore >= structureThreshold &&
+    metrics.flowScore >= flowThreshold &&
+    !metrics.forceSummaryOnly;
+  const packetMode: ModuleDocumentationPacketMode = qualifiesForFullPacket
+    ? "full-packet"
+    : "summary-only";
   const classLikeEntityCount = module.components.reduce(
     (total, componentPath) =>
       total +
@@ -85,16 +91,21 @@ export const selectModuleDocumentationPacket = (
   );
 
   return {
+    conservativeMode,
+    downgradeReason: !qualifiesForFullPacket
+      ? buildDowngradeReason(metrics, conservativeMode)
+      : undefined,
+    flowScore: metrics.flowScore,
     packetMode,
     preferredStructureDiagramKind:
       classLikeEntityCount >= 2 ? "classDiagram" : "flowchart",
-    recommendSequenceDiagram:
-      packetMode === "full-packet" && moduleRelationshipCount >= 2,
+    recommendSequenceDiagram: packetMode === "full-packet",
     selectionReason: isHighValueModule
       ? "Module matches a high-value subsystem pattern."
       : packetMode === "full-packet"
-        ? "Module has enough entities and relationships to benefit from structure and flow documentation."
-        : "Module is better served by a concise summary-only page.",
+        ? "Module has strong structural and flow signals for a paired structure-and-sequence packet."
+        : buildSummaryOnlyReason(metrics, conservativeMode),
+    structureScore: metrics.structureScore,
   };
 };
 
@@ -191,11 +202,23 @@ export const buildModuleDocumentationFacts = (
   });
 
   const flowCandidates = analysis.relationships
-    .filter(
-      (relationship) =>
-        moduleComponentSet.has(relationship.source) ||
-        moduleComponentSet.has(relationship.target),
-    )
+    .filter((relationship) => {
+      const sourceInModule = moduleComponentSet.has(relationship.source);
+      const targetInModule = moduleComponentSet.has(relationship.target);
+
+      if (!sourceInModule && !targetInModule) {
+        return false;
+      }
+
+      if (relationship.type !== "import") {
+        return true;
+      }
+
+      return (
+        isFlowWorthyPath(relationship.source) ||
+        isFlowWorthyPath(relationship.target)
+      );
+    })
     .map((relationship) => ({
       action: `${relationship.type} interaction`,
       actor: relationship.source,
@@ -204,7 +227,15 @@ export const buildModuleDocumentationFacts = (
           ? "Imports collaborator"
           : "Uses collaborator during runtime",
       target: relationship.target,
-    }));
+      weight: getRelationshipWeight(relationship.type),
+    }))
+    .sort(
+      (left, right) =>
+        right.weight - left.weight ||
+        `${left.actor}:${left.target}`.localeCompare(
+          `${right.actor}:${right.target}`,
+        ),
+    );
 
   return {
     crossModuleRelationships: [...new Set(crossModuleRelationships)].sort(),
@@ -218,6 +249,191 @@ export const buildModuleDocumentationFacts = (
     module,
     sourceCoverage: [...module.components].sort(),
   };
+};
+
+interface ModuleSelectionMetrics {
+  structureScore: number;
+  flowScore: number;
+  forceSummaryOnly: boolean;
+  reasons: string[];
+}
+
+const buildSelectionMetrics = (
+  module: PlannedModule,
+  _analysis: RepositoryAnalysis,
+  facts: ModuleDocumentationFacts,
+  isHighValueModule: boolean,
+): ModuleSelectionMetrics => {
+  const exportedEntityCount = facts.entityCandidates.filter(
+    (entity) => entity.kind !== "file",
+  ).length;
+  const classLikeEntityCount = facts.entityCandidates.filter((entity) =>
+    ["class", "interface", "type", "enum"].includes(entity.kind),
+  ).length;
+  const moduleRelationshipCount =
+    facts.internalRelationships.length + facts.crossModuleRelationships.length;
+  const strongFlowCandidates = facts.flowCandidates.filter(
+    (candidate) => candidate.weight >= 2,
+  );
+  const distinctFlowNodes = new Set(
+    strongFlowCandidates.flatMap((candidate) => [
+      candidate.actor,
+      candidate.target,
+    ]),
+  ).size;
+  const flowWorthyEntityCount = facts.entityCandidates.filter(
+    (entity) =>
+      isFlowWorthyName(entity.name) || isFlowWorthyPath(entity.filePath),
+  ).length;
+  const analyzerFamilyCount = facts.entityCandidates.filter((entity) =>
+    /analyzer$/iu.test(entity.name),
+  ).length;
+  const vendoredModule = module.components.some((componentPath) =>
+    componentPath.startsWith("vendor/"),
+  );
+  const testHeavyModule = module.components.every((componentPath) =>
+    /(\/|^)(test|tests|__tests__)\b/iu.test(componentPath),
+  );
+  const generatedHeavyModule = module.components.every((componentPath) =>
+    /_generated|generated/iu.test(componentPath),
+  );
+
+  let structureScore = 0;
+  let flowScore = 0;
+  const reasons: string[] = [];
+
+  if (isHighValueModule) {
+    structureScore += 2;
+  }
+
+  if (module.components.length >= 3) {
+    structureScore += 1;
+  }
+
+  if (module.components.length >= 6) {
+    structureScore += 1;
+  }
+
+  if (exportedEntityCount >= 4) {
+    structureScore += 1;
+  }
+
+  if (exportedEntityCount >= 10) {
+    structureScore += 1;
+  }
+
+  if (moduleRelationshipCount >= 3) {
+    structureScore += 1;
+  }
+
+  if (moduleRelationshipCount >= 8) {
+    structureScore += 1;
+  }
+
+  if (classLikeEntityCount >= 2) {
+    structureScore += 1;
+  }
+
+  if (flowWorthyEntityCount >= 2) {
+    flowScore += 1;
+  }
+
+  if (strongFlowCandidates.length >= 2) {
+    flowScore += 1;
+  }
+
+  if (strongFlowCandidates.length >= 4) {
+    flowScore += 1;
+  }
+
+  if (distinctFlowNodes >= 3) {
+    flowScore += 1;
+  }
+
+  if (strongFlowCandidates.some((candidate) => candidate.weight >= 3)) {
+    flowScore += 1;
+  }
+
+  if (vendoredModule) {
+    flowScore -= 2;
+    reasons.push("module is vendored");
+  }
+
+  if (analyzerFamilyCount >= 3) {
+    flowScore -= 3;
+    reasons.push("module is an analyzer family without a clear dominant flow");
+  }
+
+  if (testHeavyModule) {
+    flowScore -= 2;
+    reasons.push("module is test-heavy");
+  }
+
+  if (generatedHeavyModule) {
+    flowScore -= 2;
+    reasons.push("module is generated-code-heavy");
+  }
+
+  return {
+    flowScore,
+    forceSummaryOnly:
+      analyzerFamilyCount >= 3 || testHeavyModule || generatedHeavyModule,
+    reasons,
+    structureScore,
+  };
+};
+
+const buildSummaryOnlyReason = (
+  metrics: ModuleSelectionMetrics,
+  conservativeMode: boolean,
+): string => {
+  const parts = [
+    "Module is better served by a concise summary-only page.",
+    `structure score=${metrics.structureScore}`,
+    `flow score=${metrics.flowScore}`,
+  ];
+
+  if (conservativeMode) {
+    parts.push("large-repo conservative mode is active");
+  }
+
+  if (metrics.reasons.length > 0) {
+    parts.push(`reasons: ${metrics.reasons.join(", ")}`);
+  }
+
+  return parts.join(" ");
+};
+
+const buildDowngradeReason = (
+  metrics: ModuleSelectionMetrics,
+  conservativeMode: boolean,
+): string => buildSummaryOnlyReason(metrics, conservativeMode);
+
+const FLOW_WORTHY_NAME_PATTERN =
+  /(handler|orchestrator|service|controller|route|router|middleware|publisher|generator|updater|validator|review|entry|server|api|manager)\b/iu;
+
+const FLOW_WORTHY_PATH_PATTERN =
+  /(handler|orchestrator|service|controller|route|router|middleware|publish|update|validate|review|server|api)/iu;
+
+const isFlowWorthyName = (value: string): boolean =>
+  FLOW_WORTHY_NAME_PATTERN.test(value);
+
+const isFlowWorthyPath = (value: string): boolean =>
+  FLOW_WORTHY_PATH_PATTERN.test(value);
+
+const getRelationshipWeight = (
+  relationshipType: RepositoryAnalysis["relationships"][number]["type"],
+): number => {
+  switch (relationshipType) {
+    case "usage":
+      return 3;
+    case "composition":
+    case "implementation":
+    case "inheritance":
+      return 2;
+    case "import":
+      return 1;
+  }
 };
 
 export const renderModuleDocumentationPacket = (

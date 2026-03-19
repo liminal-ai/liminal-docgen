@@ -8,6 +8,7 @@ export interface InferenceProviderDefinition {
   capabilities: InferenceProviderCapabilities;
   defaultAuthMode: "env" | "oauth";
   defaultApiKeyEnvVar?: string;
+  defaultModel?: string;
 }
 
 export const INFERENCE_PROVIDER_REGISTRY: Record<
@@ -24,6 +25,7 @@ export const INFERENCE_PROVIDER_REGISTRY: Record<
     },
     defaultApiKeyEnvVar: "ANTHROPIC_API_KEY",
     defaultAuthMode: "oauth",
+    defaultModel: "sonnet[1m]",
     id: "claude-cli",
   },
   "claude-sdk": {
@@ -36,6 +38,7 @@ export const INFERENCE_PROVIDER_REGISTRY: Record<
     },
     defaultApiKeyEnvVar: "ANTHROPIC_API_KEY",
     defaultAuthMode: "oauth",
+    defaultModel: "sonnet[1m]",
     id: "claude-sdk",
   },
   "openrouter-http": {

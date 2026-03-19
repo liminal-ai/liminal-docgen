@@ -22,7 +22,8 @@ export const resolveInferenceConfiguration = (
 
   return {
     auth: normalizeAuthConfiguration(auth, definition.defaultApiKeyEnvVar),
-    model: normalizeOptionalModelSelection(value.model),
+    model:
+      normalizeOptionalModelSelection(value.model) ?? definition.defaultModel,
     provider: value.provider,
   };
 };

@@ -51,6 +51,44 @@ export const moduleGenerationResultSchema = z
         path: ["flowNotes"],
       });
     }
+
+    if (value.packetMode === "full-packet") {
+      if (!value.structureDiagram) {
+        context.addIssue({
+          code: "custom",
+          message:
+            'Module generation result with packetMode "full-packet" must include structureDiagram',
+          path: ["structureDiagram"],
+        });
+      }
+
+      if (!value.entityTable || value.entityTable.length === 0) {
+        context.addIssue({
+          code: "custom",
+          message:
+            'Module generation result with packetMode "full-packet" must include entityTable',
+          path: ["entityTable"],
+        });
+      }
+
+      if (!value.sequenceDiagram) {
+        context.addIssue({
+          code: "custom",
+          message:
+            'Module generation result with packetMode "full-packet" must include sequenceDiagram',
+          path: ["sequenceDiagram"],
+        });
+      }
+
+      if (!value.flowNotes || value.flowNotes.length === 0) {
+        context.addIssue({
+          code: "custom",
+          message:
+            'Module generation result with packetMode "full-packet" must include flowNotes',
+          path: ["flowNotes"],
+        });
+      }
+    }
   });
 
 export const overviewGenerationResultSchema = z.object({

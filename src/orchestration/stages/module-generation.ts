@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-
+import type { ZodError } from "zod";
 import { toJSONSchema } from "zod";
 
 import { moduleGenerationResultSchema } from "../../contracts/generation.js";
@@ -35,6 +35,10 @@ export type ModuleProgressCallback = (
 const moduleGenerationOutputSchema = toJSONSchema(
   moduleGenerationResultSchema,
 ) as Record<string, unknown>;
+
+type ModuleGenerationValidationErrors = ReturnType<
+  ZodError<ModuleGenerationResult>["flatten"]
+>;
 
 export const generateModuleDocs = async (
   plan: ModulePlan,
@@ -143,7 +147,11 @@ const generateModulePage = async (
       });
     }
 
-    const parsedResult = moduleGenerationResultSchema.safeParse(
+    const parsedResult = await parseModuleGenerationResult(
+      provider,
+      module,
+      systemPrompt,
+      userMessage,
       result.value.output,
     );
 
@@ -184,6 +192,150 @@ const generateModulePage = async (
       moduleName: module.name,
     });
   }
+};
+
+const parseModuleGenerationResult = async (
+  provider: InferenceProvider,
+  module: PlannedModule,
+  systemPrompt: string,
+  userMessage: string,
+  output: unknown,
+): Promise<ReturnType<typeof moduleGenerationResultSchema.safeParse>> => {
+  const parsedResult = moduleGenerationResultSchema.safeParse(output);
+
+  if (parsedResult.success) {
+    return parsedResult;
+  }
+
+  if (
+    !isRecoverableModulePacketMismatch(output, parsedResult.error.flatten())
+  ) {
+    return parsedResult;
+  }
+
+  const repairResult = await provider.infer<ModuleGenerationResult>({
+    outputSchema: moduleGenerationOutputSchema,
+    systemPrompt,
+    userMessage: buildModuleRepairPrompt(
+      module.name,
+      userMessage,
+      output,
+      parsedResult.error.flatten(),
+    ),
+  });
+
+  if (!repairResult.ok) {
+    return coerceSummaryOnlyModuleGenerationResult(output) ?? parsedResult;
+  }
+
+  const repairedParse = moduleGenerationResultSchema.safeParse(
+    repairResult.value.output,
+  );
+
+  if (repairedParse.success) {
+    return repairedParse;
+  }
+
+  return (
+    coerceSummaryOnlyModuleGenerationResult(repairResult.value.output) ??
+    coerceSummaryOnlyModuleGenerationResult(output) ??
+    repairedParse
+  );
+};
+
+const isRecoverableModulePacketMismatch = (
+  output: unknown,
+  validationErrors: ModuleGenerationValidationErrors,
+): boolean => {
+  if (!isRecord(output)) {
+    return false;
+  }
+
+  const packetMode = output.packetMode;
+
+  if (packetMode !== "full-packet") {
+    return false;
+  }
+
+  return (
+    (validationErrors.fieldErrors.sequenceDiagram?.length ?? 0) > 0 ||
+    (validationErrors.fieldErrors.flowNotes?.length ?? 0) > 0
+  );
+};
+
+const buildModuleRepairPrompt = (
+  moduleName: string,
+  originalUserMessage: string,
+  invalidOutput: unknown,
+  validationErrors: ModuleGenerationValidationErrors,
+): string =>
+  [
+    originalUserMessage,
+    "",
+    "Your previous response did not satisfy the output contract for this module packet.",
+    `Module: ${moduleName}`,
+    "",
+    "Repair rules:",
+    '- If you return packetMode "full-packet", you must include a non-empty structureDiagram, entityTable, sequenceDiagram, and flowNotes.',
+    '- If you cannot provide a meaningful sequence diagram for this module, change packetMode to "summary-only" and omit sequenceDiagram and flowNotes.',
+    "- Return corrected JSON only.",
+    "",
+    "Previous invalid JSON:",
+    JSON.stringify(invalidOutput, null, 2),
+    "",
+    "Validation errors:",
+    JSON.stringify(validationErrors, null, 2),
+  ].join("\n");
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+const coerceSummaryOnlyModuleGenerationResult = (
+  output: unknown,
+): ReturnType<typeof moduleGenerationResultSchema.safeParse> | null => {
+  if (!isRecord(output)) {
+    return null;
+  }
+
+  const title =
+    typeof output.title === "string" && output.title.trim().length > 0
+      ? output.title
+      : undefined;
+  const crossLinks = Array.isArray(output.crossLinks)
+    ? output.crossLinks.filter(
+        (value): value is string => typeof value === "string",
+      )
+    : [];
+  const overview =
+    typeof output.overview === "string" && output.overview.trim().length > 0
+      ? output.overview
+      : undefined;
+  const pageContent =
+    typeof output.pageContent === "string" &&
+    output.pageContent.trim().length > 0
+      ? output.pageContent
+      : undefined;
+  const responsibilities = Array.isArray(output.responsibilities)
+    ? output.responsibilities.filter(
+        (value): value is string =>
+          typeof value === "string" && value.trim().length > 0,
+      )
+    : undefined;
+
+  if (!title || (!overview && !pageContent)) {
+    return null;
+  }
+
+  return moduleGenerationResultSchema.safeParse({
+    crossLinks,
+    ...(overview ? { overview } : {}),
+    packetMode: "summary-only",
+    ...(pageContent ? { pageContent } : {}),
+    ...(responsibilities && responsibilities.length > 0
+      ? { responsibilities }
+      : {}),
+    title,
+  });
 };
 
 const normalizeModulePage = (
