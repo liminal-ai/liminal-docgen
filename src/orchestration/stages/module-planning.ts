@@ -8,6 +8,7 @@ import {
 } from "../../contracts/planning.js";
 import type { InferenceProvider } from "../../inference/types.js";
 import { buildClusteringPrompt } from "../../prompts/clustering.js";
+import type { DocumentationStrategy } from "../../strategy/types.js";
 import type { EngineResult } from "../../types/common.js";
 import { err, ok } from "../../types/common.js";
 import type { RepositoryAnalysis } from "../../types/index.js";
@@ -21,6 +22,7 @@ const modulePlanOutputSchema = toJSONSchema(modulePlanSchema) as Record<
 export const planModules = async (
   analysis: RepositoryAnalysis,
   provider: InferenceProvider,
+  strategy?: DocumentationStrategy,
 ): Promise<EngineResult<ModulePlan>> => {
   const componentPaths = Object.keys(analysis.components).sort();
 
@@ -36,7 +38,10 @@ export const planModules = async (
     return validateModulePlan(buildSmallRepoPlan(analysis), analysis);
   }
 
-  const { systemPrompt, userMessage } = buildClusteringPrompt(analysis);
+  const { systemPrompt, userMessage } = buildClusteringPrompt(
+    analysis,
+    strategy,
+  );
 
   try {
     const result = await provider.infer<ModulePlan>({
