@@ -3,9 +3,20 @@ import path from "node:path";
 import type { ZodError } from "zod";
 import { toJSONSchema } from "zod";
 
+import { ObservationCollector } from "../../agent/observation-collector.js";
+import { assembleAgentPage } from "../../agent/page-assembly.js";
+import { runAgentForModule } from "../../agent/runtime.js";
+import type {
+  AgentModuleContext,
+  AgentRuntimeConfig,
+  ComponentClassificationView,
+} from "../../agent/types.js";
+import { DEFAULT_AGENT_CONFIG } from "../../agent/types.js";
+import type { ClassifiedComponentData } from "../../classification/types.js";
 import { moduleGenerationResultSchema } from "../../contracts/generation.js";
 import type { InferenceProvider } from "../../inference/types.js";
 import { buildModuleDocPrompt } from "../../prompts/module-doc.js";
+import type { DocumentationStrategy } from "../../strategy/types.js";
 import { err, ok } from "../../types/common.js";
 import { moduleNameToFileName } from "../../types/generation.js";
 import type {
@@ -32,6 +43,13 @@ export type ModuleProgressCallback = (
   total: number,
 ) => void;
 
+/** Optional context for agentic module generation. */
+export interface AgenticGenerationContext {
+  classificationMap?: Map<string, ClassifiedComponentData>;
+  moduleArchetypes?: Map<string, string>;
+  strategy?: DocumentationStrategy;
+}
+
 const moduleGenerationOutputSchema = toJSONSchema(
   moduleGenerationResultSchema,
 ) as Record<string, unknown>;
@@ -47,6 +65,7 @@ export const generateModuleDocs = async (
   provider: InferenceProvider,
   onModuleProgress?: ModuleProgressCallback,
   modulesOverride?: PlannedModule[],
+  agenticContext?: AgenticGenerationContext,
 ): Promise<EngineResult<GeneratedModuleSet>> => {
   const outputPath = resolveOutputPath(config);
   const modules = [...(modulesOverride ?? plan.modules)].sort((left, right) =>
@@ -67,6 +86,11 @@ export const generateModuleDocs = async (
     });
   }
 
+  const useAgenticPath = provider.supportsToolUse();
+  const collector = useAgenticPath
+    ? new ObservationCollector(`gen-${Date.now()}`)
+    : undefined;
+
   const generatedModules: GeneratedModuleSet = new Map();
 
   for (const [index, module] of modules.entries()) {
@@ -79,21 +103,55 @@ export const generateModuleDocs = async (
     }
 
     const filePath = path.join(outputPath, fileName);
-    const contentResult =
-      module.components.length === 0
-        ? ok(createPlaceholderModulePage(module))
-        : await generateModulePage(module, plan, analysis, config, provider);
 
-    if (!contentResult.ok) {
-      return contentResult;
+    let content: string;
+
+    if (module.components.length === 0) {
+      content = createPlaceholderModulePage(module);
+    } else if (useAgenticPath && collector) {
+      // Agentic path: per-module error handling — failures become placeholders
+      try {
+        const agentResult = await generateModuleAgentic(
+          module,
+          plan,
+          analysis,
+          config,
+          provider,
+          collector,
+          agenticContext,
+        );
+
+        if (agentResult.ok) {
+          content = agentResult.value;
+        } else {
+          content = createFailedModulePlaceholder(
+            module,
+            agentResult.error.message,
+          );
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        content = createFailedModulePlaceholder(module, message);
+      }
+    } else {
+      // One-shot path: preserve existing error-abort behavior
+      const oneShotResult = await generateModulePage(
+        module,
+        plan,
+        analysis,
+        config,
+        provider,
+      );
+
+      if (!oneShotResult.ok) {
+        return oneShotResult;
+      }
+
+      content = oneShotResult.value;
     }
 
     try {
-      await writeFile(
-        filePath,
-        ensureTrailingNewline(contentResult.value),
-        "utf8",
-      );
+      await writeFile(filePath, ensureTrailingNewline(content), "utf8");
     } catch (error) {
       return err("ORCHESTRATION_ERROR", "Unable to write module page", {
         cause: error instanceof Error ? error.message : String(error),
@@ -105,7 +163,7 @@ export const generateModuleDocs = async (
     onModuleProgress?.(module.name, index + 1, modules.length);
 
     generatedModules.set(module.name, {
-      content: contentResult.value,
+      content,
       description: module.description,
       fileName,
       filePath,
@@ -113,8 +171,129 @@ export const generateModuleDocs = async (
     });
   }
 
+  // Persist observations after all modules complete
+  if (collector) {
+    await collector.persist(outputPath);
+  }
+
   return ok(generatedModules);
 };
+
+const generateModuleAgentic = async (
+  module: PlannedModule,
+  plan: ModulePlan,
+  analysis: RepositoryAnalysis,
+  config: ResolvedRunConfig,
+  provider: InferenceProvider,
+  collector: ObservationCollector,
+  agenticContext?: AgenticGenerationContext,
+): Promise<EngineResult<string>> => {
+  const facts = buildModuleDocumentationFacts(module, plan, analysis);
+  const otherModuleNames = plan.modules
+    .filter((m) => m.name !== module.name)
+    .map((m) => m.name);
+
+  const componentClassifications = new Map<
+    string,
+    ComponentClassificationView
+  >();
+  if (agenticContext?.classificationMap) {
+    for (const componentPath of module.components) {
+      const cl = agenticContext.classificationMap.get(componentPath);
+      if (cl) {
+        componentClassifications.set(componentPath, {
+          role: cl.role,
+          zone: cl.zone,
+        });
+      }
+    }
+  }
+
+  const moduleArchetype =
+    agenticContext?.moduleArchetypes?.get(module.name) ?? "mixed";
+
+  // Find zone guidance for this module's dominant zone
+  let zoneGuidance: string | undefined;
+  if (agenticContext?.strategy?.zoneGuidance) {
+    const dominantZone =
+      componentClassifications.size > 0
+        ? [...componentClassifications.values()]
+            .map((c) => c.zone)
+            .sort()
+            .reduce(
+              (best, zone, _, arr) => {
+                const count = arr.filter((z) => z === zone).length;
+                return count > best.count ? { zone, count } : best;
+              },
+              { zone: "", count: 0 },
+            ).zone
+        : undefined;
+
+    const guidance = agenticContext.strategy.zoneGuidance.find(
+      (zg) => zg.zone === dominantZone,
+    );
+    zoneGuidance = guidance
+      ? `${guidance.treatment}: ${guidance.reason}`
+      : undefined;
+  }
+
+  const agentContext: AgentModuleContext = {
+    moduleName: module.name,
+    moduleDescription: module.description,
+    moduleArchetype,
+    componentPaths: [...module.components],
+    componentClassifications,
+    entityCandidates: facts.entityCandidates,
+    flowCandidates: facts.flowCandidates,
+    internalRelationships: facts.internalRelationships,
+    crossModuleRelationships: facts.crossModuleRelationships,
+    sourceCoverage: facts.sourceCoverage,
+    zoneGuidance,
+    otherModuleNames,
+  };
+
+  const runtimeConfig: AgentRuntimeConfig = {
+    ...DEFAULT_AGENT_CONFIG,
+    repoRoot: config.repoPath,
+  };
+
+  const agentResult = await runAgentForModule(
+    agentContext,
+    provider,
+    runtimeConfig,
+    collector,
+  );
+
+  if (agentResult.status === "failed") {
+    return err("AGENT_ERROR", agentResult.failureReason ?? "Agent failed", {
+      moduleName: module.name,
+      turnCount: agentResult.turnCount,
+      toolCallCount: agentResult.toolCallCount,
+    });
+  }
+
+  return ok(assembleAgentPage(module.name, agentResult.sections));
+};
+
+const createFailedModulePlaceholder = (
+  module: PlannedModule,
+  failureReason: string,
+): string =>
+  [
+    `# ${module.name}`,
+    "",
+    module.description,
+    "",
+    "## Status",
+    "",
+    "Module generation failed.",
+    "",
+    `**Reason:** ${failureReason}`,
+    "",
+    "## Components",
+    "",
+    ...module.components.map((c) => `- ${c}`),
+  ].join("\n");
 
 const generateModulePage = async (
   module: PlannedModule,

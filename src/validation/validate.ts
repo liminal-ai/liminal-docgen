@@ -13,10 +13,13 @@ import type {
   ValidationResult,
 } from "../types/index.js";
 import { checkCrossLinks } from "./checks/cross-links.js";
+import { checkEntityTableRows } from "./checks/entity-table-rows.js";
 import { checkFilePresence } from "./checks/file-presence.js";
+import { checkFlowNotesConstraint } from "./checks/flow-notes-constraint.js";
 import { checkMermaid } from "./checks/mermaid.js";
 import { checkMetadataShape } from "./checks/metadata-shape.js";
 import { checkModuleTree } from "./checks/module-tree.js";
+import { checkRequiredSections } from "./checks/required-sections.js";
 
 export const validateDocumentation = async (
   request: ValidationRequest,
@@ -74,6 +77,9 @@ export const validateDocumentation = async (
         checkMetadataShape(outputPath, requirePersistedArtifacts),
         checkModuleTree(outputPath),
         checkMermaid(outputPath),
+        checkRequiredSections(outputPath),
+        checkEntityTableRows(outputPath),
+        checkFlowNotesConstraint(outputPath),
       ])
     ).flat();
 
