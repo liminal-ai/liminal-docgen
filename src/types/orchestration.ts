@@ -109,3 +109,60 @@ export interface RunSuccessData {
   unchangedModules?: string[];
   overviewRegenerated?: boolean;
 }
+
+// -- Agentic generation types (Story 0 foundation) --
+
+/**
+ * Tri-state run outcome. Replaces the binary success/failure discriminant
+ * in a future story.
+ *
+ * - "success": all modules generated successfully
+ * - "partial-success": at least one module failed, but half or more succeeded
+ * - "failure": more than half of modules failed
+ */
+export type RunStatus = "success" | "partial-success" | "failure";
+
+/**
+ * Outcome of generating a single module's documentation page.
+ * Every module in the plan produces exactly one outcome.
+ */
+export interface ModuleGenerationOutcome {
+  moduleName: string;
+  status: "success" | "failed";
+  generationPath: "agentic" | "one-shot";
+  fileName: string;
+  durationMs: number;
+  turnCount?: number;
+  toolCallCount?: number;
+  failureReason?: string;
+  hasPlaceholderPage?: boolean;
+  observationCount?: number;
+}
+
+/**
+ * Complete run result for agentic generation. Added alongside the existing
+ * DocumentationRunSuccess/DocumentationRunFailure types — these will be
+ * unified in Story 5. For now, both representations coexist.
+ */
+export interface AgenticDocumentationRunResult {
+  status: RunStatus;
+  runId: string;
+  mode: "full" | "update";
+  moduleOutcomes: ModuleGenerationOutcome[];
+  successCount: number;
+  failureCount: number;
+  totalDurationMs: number;
+  warnings: string[];
+  observationCount: number;
+  costUsd: number | null;
+
+  outputPath?: string;
+  generatedFiles?: string[];
+  modulePlan?: ModulePlan;
+  validationResult?: ValidationResult;
+  qualityReviewPasses?: number;
+  commitHash?: string;
+
+  failedStage?: DocumentationStage;
+  error?: EngineError;
+}

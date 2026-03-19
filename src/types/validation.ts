@@ -17,7 +17,10 @@ export interface ValidationFinding {
     | "broken-link"
     | "metadata"
     | "module-tree"
-    | "mermaid";
+    | "mermaid"
+    | "required-section"
+    | "entity-table"
+    | "flow-notes";
   message: string;
   filePath?: string;
   target?: string;

@@ -5,6 +5,7 @@ import { getProviderDefinition } from "../registry.js";
 import {
   createAccumulator,
   errInference,
+  errToolUseUnsupported,
   extractJsonCandidate,
   okInference,
 } from "../shared.js";
@@ -12,6 +13,8 @@ import type {
   InferenceProvider,
   InferenceRequest,
   ResolvedInferenceConfiguration,
+  ToolUseHandle,
+  ToolUseRequest,
 } from "../types.js";
 
 interface ClaudeCliResultEnvelope {
@@ -39,6 +42,17 @@ export const createClaudeCliProvider = (
 
     getAccumulatedUsage() {
       return accumulator.getAccumulatedUsage();
+    },
+
+    supportsToolUse(): boolean {
+      return false;
+    },
+
+    inferWithTools(_request: ToolUseRequest): ToolUseHandle {
+      return {
+        result: Promise.resolve(errToolUseUnsupported("claude-cli")),
+        cancel: () => {},
+      };
     },
 
     async infer<T>(request: InferenceRequest) {

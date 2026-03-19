@@ -152,4 +152,15 @@ const createNoopInferenceProvider = (): InferenceProvider => ({
       message: "Inference provider is not configured",
     },
   }),
+  supportsToolUse: () => false,
+  inferWithTools: () => ({
+    result: Promise.resolve({
+      ok: false,
+      error: {
+        code: "TOOL_USE_UNSUPPORTED" as const,
+        message: "Noop provider does not support tool use",
+      },
+    }),
+    cancel: () => {},
+  }),
 });

@@ -103,6 +103,17 @@ describe("planModules", () => {
       computeCost: () => 0,
       getAccumulatedUsage: () => ({ inputTokens: 0, outputTokens: 0 }),
       infer: query,
+      supportsToolUse: () => false,
+      inferWithTools: () => ({
+        result: Promise.resolve({
+          ok: false as const,
+          error: {
+            code: "TOOL_USE_UNSUPPORTED" as const,
+            message: "Mock provider does not support tool use",
+          },
+        }),
+        cancel: () => {},
+      }),
       query,
     };
 
@@ -310,6 +321,17 @@ describe("planModules", () => {
       computeCost: () => 0,
       getAccumulatedUsage: () => ({ inputTokens: 0, outputTokens: 0 }),
       infer: query,
+      supportsToolUse: () => false,
+      inferWithTools: () => ({
+        result: Promise.resolve({
+          ok: false as const,
+          error: {
+            code: "TOOL_USE_UNSUPPORTED" as const,
+            message: "Mock provider does not support tool use",
+          },
+        }),
+        cancel: () => {},
+      }),
       query,
     };
 
@@ -338,6 +360,17 @@ describe("planModules", () => {
       computeCost: () => 0,
       getAccumulatedUsage: () => ({ inputTokens: 0, outputTokens: 0 }),
       infer: query,
+      supportsToolUse: () => false,
+      inferWithTools: () => ({
+        result: Promise.resolve({
+          ok: false as const,
+          error: {
+            code: "TOOL_USE_UNSUPPORTED" as const,
+            message: "Mock provider does not support tool use",
+          },
+        }),
+        cancel: () => {},
+      }),
       query,
     };
 
@@ -371,6 +404,17 @@ describe("planModules", () => {
       computeCost: () => 0,
       getAccumulatedUsage: () => ({ inputTokens: 0, outputTokens: 0 }),
       infer: query,
+      supportsToolUse: () => false,
+      inferWithTools: () => ({
+        result: Promise.resolve({
+          ok: false as const,
+          error: {
+            code: "TOOL_USE_UNSUPPORTED" as const,
+            message: "Mock provider does not support tool use",
+          },
+        }),
+        cancel: () => {},
+      }),
       query,
     };
 

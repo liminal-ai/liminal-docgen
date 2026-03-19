@@ -130,6 +130,23 @@ export const createMockSDK = (config: MockSDKConfig): MockInferenceProvider => {
       return provider.query(options);
     },
 
+    supportsToolUse(): boolean {
+      return false;
+    },
+
+    inferWithTools() {
+      return {
+        result: Promise.resolve({
+          ok: false as const,
+          error: {
+            code: "TOOL_USE_UNSUPPORTED" as const,
+            message: "Mock provider does not support tool use",
+          },
+        }),
+        cancel: () => {},
+      };
+    },
+
     query,
   };
 

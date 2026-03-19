@@ -19,7 +19,11 @@ export type EngineErrorCode =
   | "CONFIGURATION_ERROR"
   | "ORCHESTRATION_ERROR"
   | "PATH_ERROR"
-  | "PUBLISH_ERROR";
+  | "PUBLISH_ERROR"
+  | "TOOL_USE_UNSUPPORTED"
+  | "CLASSIFICATION_ERROR"
+  | "STRATEGY_ERROR"
+  | "AGENT_ERROR";
 
 export interface EngineError {
   code: EngineErrorCode;

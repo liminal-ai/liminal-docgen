@@ -4,6 +4,7 @@ import { getProviderDefinition } from "../registry.js";
 import {
   createAccumulator,
   errInference,
+  errToolUseUnsupported,
   extractJsonCandidate,
   okInference,
 } from "../shared.js";
@@ -11,6 +12,8 @@ import type {
   InferenceProvider,
   InferenceRequest,
   ResolvedInferenceConfiguration,
+  ToolUseHandle,
+  ToolUseRequest,
 } from "../types.js";
 
 interface OpenRouterChatResponse {
@@ -47,6 +50,17 @@ export const createOpenRouterHttpProvider = (
 
     getAccumulatedUsage() {
       return accumulator.getAccumulatedUsage();
+    },
+
+    supportsToolUse(): boolean {
+      return false;
+    },
+
+    inferWithTools(_request: ToolUseRequest): ToolUseHandle {
+      return {
+        result: Promise.resolve(errToolUseUnsupported("openrouter-http")),
+        cancel: () => {},
+      };
     },
 
     async infer<T>(request: InferenceRequest) {

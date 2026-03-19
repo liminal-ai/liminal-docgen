@@ -94,3 +94,14 @@ export const errInference = (
   message: string,
   details?: unknown,
 ): EngineResult<never> => err("ORCHESTRATION_ERROR", message, details);
+
+export const errToolUseUnsupported = (
+  providerId: string,
+): EngineResult<never> =>
+  err(
+    "TOOL_USE_UNSUPPORTED",
+    `Provider "${providerId}" does not support tool-use conversations. ` +
+      `Use a provider with tool-use support (e.g., claude-sdk) for agentic generation, ` +
+      `or the system will fall back to one-shot generation.`,
+    { providerId },
+  );
