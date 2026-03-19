@@ -36,7 +36,7 @@ export const INFERENCE_PROVIDER_REGISTRY: Record<
       reportsUsage: true,
       supportsModelSelection: true,
       supportsStructuredOutput: true,
-      supportsToolUse: false,
+      supportsToolUse: true,
     },
     defaultApiKeyEnvVar: "ANTHROPIC_API_KEY",
     defaultAuthMode: "oauth",

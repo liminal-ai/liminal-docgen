@@ -1,12 +1,12 @@
 import { createRequire } from "node:module";
 
 import { getErrorMessage } from "../../errors.js";
+import type { EngineResult } from "../../types/common.js";
 import { resolveInferenceAuth } from "../auth.js";
 import { getProviderDefinition } from "../registry.js";
 import {
   createAccumulator,
   errInference,
-  errToolUseUnsupported,
   extractJsonCandidate,
   okInference,
 } from "../shared.js";
@@ -14,6 +14,7 @@ import type {
   InferenceProvider,
   InferenceRequest,
   ResolvedInferenceConfiguration,
+  ToolUseConversationResult,
   ToolUseHandle,
   ToolUseRequest,
 } from "../types.js";
@@ -26,6 +27,12 @@ interface ClaudeSdkResultMessage {
   total_cost_usd?: number;
   stop_reason?: string;
   errors?: string[];
+  num_turns?: number;
+  duration_ms?: number;
+}
+
+interface SdkQueryInstance extends AsyncIterable<unknown> {
+  close(): void;
 }
 
 const CLAUDE_AGENT_SDK_MODULE = "@anthropic-ai/claude-agent-sdk";
@@ -51,13 +58,95 @@ export const createClaudeSdkProvider = (
     },
 
     supportsToolUse(): boolean {
-      return false;
+      return true;
     },
 
-    inferWithTools(_request: ToolUseRequest): ToolUseHandle {
+    inferWithTools(request: ToolUseRequest): ToolUseHandle {
+      let queryInstance: SdkQueryInstance | null = null;
+      let cancelled = false;
+
+      const resultPromise = (async (): Promise<
+        EngineResult<ToolUseConversationResult>
+      > => {
+        try {
+          const sdk = await loadClaudeAgentSdk();
+          const mcpServer = sdk.createSdkMcpServer({
+            name: "docgen-agent",
+            tools: request.tools,
+          });
+
+          let finalResult: ClaudeSdkResultMessage | null = null;
+
+          await withClaudeSdkAuthEnv(auth, async () => {
+            queryInstance = sdk.query({
+              options: {
+                cwd: options.workingDirectory,
+                maxTurns: request.maxTurns ?? 15,
+                model: request.model ?? config.model,
+                permissionMode: "dontAsk",
+                systemPrompt: request.systemPrompt,
+                tools: [],
+                mcpServers: {
+                  "docgen-agent": mcpServer,
+                },
+              },
+              prompt: request.userMessage,
+            }) as SdkQueryInstance;
+
+            for await (const message of queryInstance) {
+              const sdkMessage = message as {
+                type?: string;
+              } & ClaudeSdkResultMessage;
+
+              if (
+                sdkMessage.type === "result" &&
+                sdkMessage.subtype === "success"
+              ) {
+                finalResult = sdkMessage;
+              }
+            }
+          });
+
+          if (finalResult === null) {
+            return errInference(
+              "Claude Agent SDK tool-use query completed without a final result message",
+            );
+          }
+
+          const resultMessage: ClaudeSdkResultMessage = finalResult;
+          const usage = extractUsage(resultMessage.usage);
+          const costUsd = extractCost(resultMessage.total_cost_usd);
+          accumulator.add({ costUsd, usage });
+
+          return {
+            ok: true as const,
+            value: {
+              costUsd,
+              durationMs: resultMessage.duration_ms ?? 0,
+              finalText: resultMessage.result ?? "",
+              turnCount: resultMessage.num_turns ?? 0,
+              usage,
+            },
+          };
+        } catch (error) {
+          if (cancelled) {
+            return errInference("Tool-use query was cancelled", {
+              cancelled: true,
+            });
+          }
+          return errInference(
+            "Claude Agent SDK tool-use query failed unexpectedly",
+            { cause: getErrorMessage(error) },
+          );
+        }
+      })();
+
       return {
-        result: Promise.resolve(errToolUseUnsupported("claude-sdk")),
-        cancel: () => {},
+        result: resultPromise,
+        cancel: () => {
+          cancelled = true;
+          queryInstance?.close();
+        },
       };
     },
 
@@ -160,11 +249,16 @@ export const isClaudeAgentSdkAvailable = (): boolean => {
 
 const loadClaudeAgentSdk = async (): Promise<{
   query: (params: unknown) => AsyncIterable<unknown>;
+  createSdkMcpServer: (options: { name: string; tools: unknown[] }) => unknown;
 }> => {
   try {
     const moduleName = CLAUDE_AGENT_SDK_MODULE;
     return (await import(moduleName)) as {
       query: (params: unknown) => AsyncIterable<unknown>;
+      createSdkMcpServer: (options: {
+        name: string;
+        tools: unknown[];
+      }) => unknown;
     };
   } catch (error) {
     throw new Error(
