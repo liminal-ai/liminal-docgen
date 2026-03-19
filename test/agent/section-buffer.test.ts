@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { assembleAgentPage } from "../../src/agent/page-assembly.js";
 import { SectionBuffer } from "../../src/agent/section-buffer.js";
 
 describe("SectionBuffer", () => {
@@ -67,5 +68,75 @@ describe("SectionBuffer", () => {
 
     expect(buffer.has("overview")).toBe(true);
     expect(buffer.has("entity-table")).toBe(false);
+  });
+});
+
+describe("assembleAgentPage — page assembly from agent sections (Story 6)", () => {
+  it("TC-6.2a: full sections produce correct markdown with proper order", () => {
+    const sections: Record<string, string> = {
+      overview: "This module handles core logic.",
+      responsibilities: "- Parse input\n- Validate output",
+      "structure-diagram": "```mermaid\nclassDiagram\n  ClassA --> ClassB\n```",
+      "entity-table":
+        "| Name | Kind | Role |\n| --- | --- | --- |\n| Foo | class | Main entry |",
+      "sequence-diagram": "```mermaid\nsequenceDiagram\n  A->>B: request\n```",
+      "flow-notes":
+        "| Step | Actor | Action | Output |\n| --- | --- | --- | --- |\n| 1 | A | calls B | response |",
+      "source-coverage": "- src/core.ts\n- src/utils.ts",
+      "cross-module-context": "- src/core.ts -> src/api.ts (import)",
+    };
+
+    const result = assembleAgentPage("Core Module", sections);
+
+    // Title is prepended
+    expect(result).toMatch(/^# Core Module\n/);
+
+    // All section headings present in canonical order
+    const headingOrder = [
+      "## Overview",
+      "## Responsibilities",
+      "## Structure Diagram",
+      "## Entity Table",
+      "## Key Flow",
+      "## Flow Notes",
+      "## Source Coverage",
+      "## Cross-Module Context",
+    ];
+    let lastIndex = -1;
+    for (const heading of headingOrder) {
+      const idx = result.indexOf(heading);
+      expect(idx).toBeGreaterThan(lastIndex);
+      lastIndex = idx;
+    }
+
+    // Content is present
+    expect(result).toContain("This module handles core logic.");
+    expect(result).toContain("- src/core.ts");
+  });
+
+  it("TC-6.2b: partial sections produce markdown without empty placeholders", () => {
+    const sections: Record<string, string> = {
+      overview: "A simple utility module.",
+      responsibilities: "- Format strings",
+      "source-coverage": "- src/utils.ts",
+    };
+
+    const result = assembleAgentPage("Utils", sections);
+
+    // Present sections
+    expect(result).toContain("# Utils");
+    expect(result).toContain("## Overview");
+    expect(result).toContain("## Responsibilities");
+    expect(result).toContain("## Source Coverage");
+
+    // Absent sections should NOT appear at all — no empty placeholders
+    expect(result).not.toContain("## Structure Diagram");
+    expect(result).not.toContain("## Entity Table");
+    expect(result).not.toContain("## Key Flow");
+    expect(result).not.toContain("## Flow Notes");
+    expect(result).not.toContain("## Cross-Module Context");
+
+    // No empty lines between heading and next heading (no placeholder gaps)
+    expect(result).not.toMatch(/## \w+\n\n\n## /);
   });
 });

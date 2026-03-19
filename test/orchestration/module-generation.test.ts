@@ -1,6 +1,6 @@
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type {
   InferenceProvider,
@@ -9,8 +9,8 @@ import type {
   ToolUseHandle,
   ToolUseRequest,
 } from "../../src/inference/types.js";
+import * as moduleDocPacket from "../../src/orchestration/module-doc-packet.js";
 import {
-  type AgenticGenerationContext,
   createFailedModulePlaceholder,
   generateModuleDocs,
 } from "../../src/orchestration/stages/module-generation.js";
@@ -786,5 +786,161 @@ describe("generateModuleDocs — stage result shape", () => {
       expect(result.value.outcomes).toHaveLength(4);
       expect(result.value.totalDurationMs).toBeGreaterThanOrEqual(0);
     }
+  });
+});
+
+describe("scoring and repair removal — Flow D (Story 6)", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("TC-6.1a: no pre-generation section prediction on agentic path", async () => {
+    const selectSpy = vi.spyOn(
+      moduleDocPacket,
+      "selectModuleDocumentationPacket",
+    );
+
+    const outputDir = createTempDir();
+    tempDirs.push(outputDir);
+
+    const plan = createMinimalPlan([
+      { name: "Agent", components: ["src/agent.ts"] },
+    ]);
+    const analysis = createMinimalAnalysis(outputDir, ["src/agent.ts"]);
+
+    // Agentic path: selectModuleDocumentationPacket should NOT be called
+    const agenticProvider = createAgenticProvider();
+    await generateModuleDocs(
+      plan,
+      analysis,
+      makeConfig(outputDir),
+      agenticProvider,
+    );
+
+    expect(selectSpy).not.toHaveBeenCalled();
+
+    // One-shot path: selectModuleDocumentationPacket SHOULD be called
+    selectSpy.mockClear();
+    const outputDir2 = createTempDir();
+    tempDirs.push(outputDir2);
+    const analysis2 = createMinimalAnalysis(outputDir2, ["src/agent.ts"]);
+
+    const oneShotProvider = createOneShotProvider();
+    await generateModuleDocs(
+      plan,
+      analysis2,
+      makeConfig(outputDir2),
+      oneShotProvider,
+    );
+
+    expect(selectSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("TC-6.1b: no inline repair on agent output", async () => {
+    const outputDir = createTempDir();
+    tempDirs.push(outputDir);
+
+    const plan = createMinimalPlan([
+      { name: "Agent", components: ["src/agent.ts"] },
+    ]);
+    const analysis = createMinimalAnalysis(outputDir, ["src/agent.ts"]);
+
+    // Create agentic provider and spy on infer (used only by one-shot repair path)
+    const agenticProvider = createAgenticProvider();
+    const inferSpy = vi.spyOn(agenticProvider, "infer");
+
+    await generateModuleDocs(
+      plan,
+      analysis,
+      makeConfig(outputDir),
+      agenticProvider,
+    );
+
+    // provider.infer is never called on the agentic path — the repair chain
+    // (normalizeOptionalPacketFields, buildModuleRepairPrompt, etc.) lives
+    // entirely inside the one-shot path which calls provider.infer
+    expect(inferSpy).not.toHaveBeenCalled();
+
+    // Verify one-shot path DOES call provider.infer
+    const outputDir2 = createTempDir();
+    tempDirs.push(outputDir2);
+    const analysis2 = createMinimalAnalysis(outputDir2, ["src/agent.ts"]);
+
+    const oneShotProvider = createOneShotProvider();
+    const oneShotInferSpy = vi.spyOn(oneShotProvider, "infer");
+
+    await generateModuleDocs(
+      plan,
+      analysis2,
+      makeConfig(outputDir2),
+      oneShotProvider,
+    );
+
+    expect(oneShotInferSpy).toHaveBeenCalled();
+  });
+
+  it("TC-6.3a: invalid Mermaid still caught by validation", async () => {
+    const outputDir = createTempDir();
+    tempDirs.push(outputDir);
+
+    // Write a markdown file with malformed Mermaid
+    const filePath = path.join(outputDir, "bad-mermaid.md");
+    const badMermaid = [
+      "# Bad Module",
+      "",
+      "## Overview",
+      "",
+      "Some overview.",
+      "",
+      "## Structure Diagram",
+      "",
+      "```mermaid",
+      "this is not valid mermaid syntax at all",
+      "```",
+      "",
+      "## Source Coverage",
+      "",
+      "- src/file.ts",
+    ].join("\n");
+    await writeFile(filePath, badMermaid, "utf8");
+
+    const { checkMermaid } = await import(
+      "../../src/validation/checks/mermaid.js"
+    );
+    const findings = await checkMermaid(outputDir);
+
+    expect(findings).toHaveLength(1);
+    expect(findings[0]).toMatchObject({
+      category: "mermaid",
+      message: expect.stringContaining("Malformed Mermaid"),
+    });
+  });
+
+  it("TC-6.3b: missing overview still caught by validation", async () => {
+    const outputDir = createTempDir();
+    tempDirs.push(outputDir);
+
+    // Write a markdown file that has source-coverage but missing overview
+    // (this triggers required-sections check since it has at least one required heading)
+    const filePath = path.join(outputDir, "no-overview.md");
+    const noOverview = [
+      "# Missing Overview Module",
+      "",
+      "## Source Coverage",
+      "",
+      "- src/file.ts",
+    ].join("\n");
+    await writeFile(filePath, noOverview, "utf8");
+
+    const { checkRequiredSections } = await import(
+      "../../src/validation/checks/required-sections.js"
+    );
+    const findings = await checkRequiredSections(outputDir);
+
+    expect(findings).toHaveLength(1);
+    expect(findings[0]).toMatchObject({
+      category: "required-section",
+      message: expect.stringContaining("Overview"),
+    });
   });
 });
