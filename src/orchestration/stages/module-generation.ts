@@ -201,7 +201,8 @@ const parseModuleGenerationResult = async (
   userMessage: string,
   output: unknown,
 ): Promise<ReturnType<typeof moduleGenerationResultSchema.safeParse>> => {
-  const parsedResult = moduleGenerationResultSchema.safeParse(output);
+  const normalizedOutput = normalizeOptionalPacketFields(output);
+  const parsedResult = moduleGenerationResultSchema.safeParse(normalizedOutput);
 
   if (parsedResult.success) {
     return parsedResult;
@@ -219,7 +220,7 @@ const parseModuleGenerationResult = async (
     userMessage: buildModuleRepairPrompt(
       module.name,
       userMessage,
-      output,
+      normalizedOutput,
       parsedResult.error.flatten(),
     ),
   });
@@ -229,7 +230,7 @@ const parseModuleGenerationResult = async (
   }
 
   const repairedParse = moduleGenerationResultSchema.safeParse(
-    repairResult.value.output,
+    normalizeOptionalPacketFields(repairResult.value.output),
   );
 
   if (repairedParse.success) {
@@ -238,7 +239,7 @@ const parseModuleGenerationResult = async (
 
   return (
     coerceSummaryOnlyModuleGenerationResult(repairResult.value.output) ??
-    coerceSummaryOnlyModuleGenerationResult(output) ??
+    coerceSummaryOnlyModuleGenerationResult(normalizedOutput) ??
     repairedParse
   );
 };
@@ -289,6 +290,43 @@ const buildModuleRepairPrompt = (
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
+
+const normalizeOptionalPacketFields = (output: unknown): unknown => {
+  if (!isRecord(output)) {
+    return output;
+  }
+
+  const normalized = { ...output };
+  const packetMode = normalized.packetMode;
+
+  for (const key of [
+    "pageContent",
+    "overview",
+    "structureDiagram",
+    "sequenceDiagram",
+  ] as const) {
+    const value = normalized[key];
+
+    if (typeof value === "string" && value.trim().length === 0) {
+      delete normalized[key];
+    }
+  }
+
+  for (const key of ["responsibilities", "entityTable", "flowNotes"] as const) {
+    const value = normalized[key];
+
+    if (Array.isArray(value) && value.length === 0) {
+      delete normalized[key];
+    }
+  }
+
+  if (packetMode === "summary-only") {
+    delete normalized.sequenceDiagram;
+    delete normalized.flowNotes;
+  }
+
+  return normalized;
+};
 
 const coerceSummaryOnlyModuleGenerationResult = (
   output: unknown,
