@@ -159,9 +159,9 @@ const setupPipelineMocks = (
 const expectFailure = (
   result: Awaited<ReturnType<typeof generateDocumentation>>,
 ) => {
-  expect(result.success).toBe(false);
+  expect(result.status).toBe("failure");
 
-  if (result.success) {
+  if (result.status !== "failure") {
     throw new Error("Expected generation to fail");
   }
 
@@ -203,8 +203,8 @@ describe("Story 6 SDK failure verification", () => {
     );
 
     expect(result.failedStage).toBe("checking-environment");
-    expect(result.error.code).toBe("PATH_ERROR");
-    expect(result.error.message).toBe(
+    expect(result.error!.code).toBe("PATH_ERROR");
+    expect(result.error!.message).toBe(
       `Path does not exist or is not a directory: ${nonexistentPath}`,
     );
     expect(mockCreateAgentSDKAdapter).not.toHaveBeenCalled();
@@ -229,7 +229,7 @@ describe("Story 6 SDK failure verification", () => {
       );
 
       expect(result.failedStage).toBe("analyzing-structure");
-      expect(result.error.code).toBe("ANALYSIS_ERROR");
+      expect(result.error!.code).toBe("ANALYSIS_ERROR");
     } finally {
       fixture.cleanup();
     }
@@ -250,14 +250,14 @@ describe("Story 6 SDK failure verification", () => {
         }),
       );
 
-      expect(result.error.code).toBe("METADATA_ERROR");
-      expect(result.error.message).toContain("Run full generation");
+      expect(result.error!.code).toBe("METADATA_ERROR");
+      expect(result.error!.message).toContain("Run full generation");
     } finally {
       fixture.cleanup();
     }
   });
 
-  it("TC-6.3a: failed generation leaves no metadata file", async () => {
+  it("TC-6.3a: single module failure produces partial-success with metadata", async () => {
     const fixture = createGitFixtureRepo();
 
     try {
@@ -272,18 +272,18 @@ describe("Story 6 SDK failure verification", () => {
         },
       });
 
-      const result = expectFailure(
-        await generateDocumentation({
-          inference: TEST_INFERENCE_CONFIGURATION,
-          mode: "full",
-          repoPath: fixture.repoPath,
-        }),
-      );
+      // With graceful degradation, 1/3 module failure → partial-success
+      const result = await generateDocumentation({
+        inference: TEST_INFERENCE_CONFIGURATION,
+        mode: "full",
+        repoPath: fixture.repoPath,
+      });
 
-      expect(result.failedStage).toBe("generating-module");
+      expect(result.status).toBe("partial-success");
+      // Partial-success proceeds to finalization, so metadata IS written
       expect(
         existsSync(path.join(fixture.repoPath, "docs/wiki", ".doc-meta.json")),
-      ).toBe(false);
+      ).toBe(true);
     } finally {
       fixture.cleanup();
     }

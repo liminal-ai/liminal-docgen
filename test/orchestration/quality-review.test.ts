@@ -259,11 +259,11 @@ const setupPipelineMocks = (
 const expectSuccess = (
   result: Awaited<ReturnType<typeof generateDocumentation>>,
 ) => {
-  expect(result.success).toBe(true);
+  expect(result.status).not.toBe("failure");
 
-  if (!result.success) {
+  if (result.status === "failure") {
     throw new Error(
-      `Expected success but received ${result.error.code}: ${result.error.message}`,
+      `Expected success but received ${result.error!.code}: ${result.error!.message}`,
     );
   }
 
@@ -273,9 +273,9 @@ const expectSuccess = (
 const expectFailure = (
   result: Awaited<ReturnType<typeof generateDocumentation>>,
 ) => {
-  expect(result.success).toBe(false);
+  expect(result.status).toBe("failure");
 
-  if (result.success) {
+  if (result.status !== "failure") {
     throw new Error("Expected generation to fail");
   }
 
@@ -642,8 +642,8 @@ describe("quality review integration", () => {
     });
     const success = expectSuccess(result);
 
-    expect(success.validationResult.status).toBe("warn");
-    expect(success.validationResult.warningCount).toBeGreaterThan(0);
+    expect(success.validationResult!.status).toBe("warn");
+    expect(success.validationResult!.warningCount).toBeGreaterThan(0);
     expect(success.qualityReviewPasses).toBe(1);
   });
 
@@ -697,7 +697,7 @@ describe("quality review integration", () => {
     const failure = expectFailure(result);
 
     expect(failure.failedStage).toBe("quality-review");
-    expect(failure.error.code).toBe("ORCHESTRATION_ERROR");
+    expect(failure.error!.code).toBe("ORCHESTRATION_ERROR");
   });
 
   it("secondModelReview defaults to false", async () => {

@@ -331,11 +331,11 @@ const runUpdate = async (
 const expectSuccess = (
   result: Awaited<ReturnType<typeof generateDocumentation>>,
 ) => {
-  expect(result.success).toBe(true);
+  expect(result.status).not.toBe("failure");
 
-  if (!result.success) {
+  if (result.status === "failure") {
     throw new Error(
-      `Expected success but received ${result.error.code}: ${result.error.message}`,
+      `Expected success but received ${result.error!.code}: ${result.error!.message}`,
     );
   }
 
@@ -345,9 +345,9 @@ const expectSuccess = (
 const expectFailure = (
   result: Awaited<ReturnType<typeof generateDocumentation>>,
 ) => {
-  expect(result.success).toBe(false);
+  expect(result.status).toBe("failure");
 
-  if (result.success) {
+  if (result.status !== "failure") {
     throw new Error("Expected update to fail");
   }
 
@@ -390,7 +390,7 @@ describe("generateDocumentation update mode", () => {
 
     const result = expectFailure(await runUpdate(repoPath));
 
-    expect(result.error.code).toBe("METADATA_ERROR");
+    expect(result.error!.code).toBe("METADATA_ERROR");
   });
 
   it("TC-2.1b: invalid prior metadata", async () => {
@@ -413,7 +413,7 @@ describe("generateDocumentation update mode", () => {
 
     const result = expectFailure(await runUpdate(repoPath));
 
-    expect(result.error.code).toBe("METADATA_ERROR");
+    expect(result.error!.code).toBe("METADATA_ERROR");
   });
 
   it("TC-2.1c: missing persisted module plan", async () => {
@@ -425,8 +425,8 @@ describe("generateDocumentation update mode", () => {
 
     const result = expectFailure(await runUpdate(repoPath));
 
-    expect(result.error.code).toBe("METADATA_ERROR");
-    expect(result.error.message).toContain("persisted module plan");
+    expect(result.error!.code).toBe("METADATA_ERROR");
+    expect(result.error!.message).toContain("persisted module plan");
   });
 
   it("TC-3.1c: stage sequence for update", async () => {
@@ -583,12 +583,12 @@ describe("generateDocumentation update mode", () => {
 
     expect(result.updatedModules).toEqual(["api", "core"]);
     expect(
-      result.modulePlan.modules.find((module) => module.name === "core"),
+      result.modulePlan!.modules.find((module) => module.name === "core"),
     ).toMatchObject({
       components: expect.arrayContaining(["src/core/new-feature.ts"]),
     });
     expect(
-      result.modulePlan.modules.find((module) => module.name === "api"),
+      result.modulePlan!.modules.find((module) => module.name === "api"),
     ).toMatchObject({
       components: expect.arrayContaining(["src/api/new-client.ts"]),
     });
@@ -685,7 +685,7 @@ describe("generateDocumentation update mode", () => {
 
     expect(result.updatedModules).toEqual(["core"]);
     expect(
-      result.modulePlan.modules.find((module) => module.name === "core"),
+      result.modulePlan!.modules.find((module) => module.name === "core"),
     ).toMatchObject({
       components: expect.arrayContaining(["src/core/new-file.ts"]),
     });
@@ -793,7 +793,7 @@ describe("generateDocumentation update mode", () => {
 
     const result = expectSuccess(await runUpdate(repoPath));
     const corePage = await readFile(
-      path.join(result.outputPath, "core.md"),
+      path.join(result.outputPath!, "core.md"),
       "utf8",
     );
 
@@ -833,7 +833,7 @@ describe("generateDocumentation update mode", () => {
 
     const result = expectSuccess(await runUpdate(repoPath));
     const apiPage = await readFile(
-      path.join(result.outputPath, "api.md"),
+      path.join(result.outputPath!, "api.md"),
       "utf8",
     );
 
@@ -922,9 +922,9 @@ describe("generateDocumentation update mode", () => {
       JSON.parse(
         await readFile(path.join(outputPath, ".module-plan.json"), "utf8"),
       ),
-    ).toEqual(result.modulePlan);
+    ).toEqual(result.modulePlan!);
     expect(
-      result.modulePlan.modules.map((module) => module.name).sort(),
+      result.modulePlan!.modules.map((module) => module.name).sort(),
     ).toEqual(["api", "core", "utils"]);
     expect(
       JSON.parse(
@@ -973,7 +973,7 @@ describe("generateDocumentation update mode", () => {
 
     const result = expectSuccess(await runUpdate(repoPath));
 
-    expect(result.modulePlan.modules.map((module) => module.name)).toEqual([
+    expect(result.modulePlan!.modules.map((module) => module.name)).toEqual([
       "core",
       "api",
       "utils",
@@ -1114,7 +1114,7 @@ describe("generateDocumentation update mode", () => {
 
     expect(result.updatedModules).toEqual(["core"]);
     expect(
-      result.modulePlan.modules.find((module) => module.name === "core"),
+      result.modulePlan!.modules.find((module) => module.name === "core"),
     ).toMatchObject({
       components: expect.arrayContaining(["src/core/service-renamed.ts"]),
     });
@@ -1223,7 +1223,7 @@ describe("generateDocumentation update mode", () => {
     const result = expectFailure(await runUpdate(repoPath));
 
     expect(result.failedStage).toBe("planning-modules");
-    expect(result.error.message).toContain("Run full generation");
+    expect(result.error!.message).toContain("Run full generation");
     expect(result.warnings).toEqual(
       expect.arrayContaining([expect.stringContaining("Run full generation")]),
     );

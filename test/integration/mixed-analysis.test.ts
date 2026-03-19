@@ -196,9 +196,9 @@ describe("integration mixed analysis harness", () => {
       repoPath: repo.repoPath,
     });
 
-    expect(result.success).toBe(true);
+    expect(result.status).not.toBe("failure");
 
-    if (!result.success) {
+    if (result.status === "failure") {
       return;
     }
 
@@ -232,7 +232,7 @@ describe("integration mixed analysis harness", () => {
       repoPath: repo.repoPath,
     });
 
-    expect(firstResult.success).toBe(true);
+    expect(firstResult.status).not.toBe("failure");
 
     await writeFile(
       path.join(repo.repoPath, "analyzer.py"),
@@ -254,9 +254,9 @@ describe("integration mixed analysis harness", () => {
       repoPath: repo.repoPath,
     });
 
-    expect(result.success).toBe(true);
+    expect(result.status).not.toBe("failure");
 
-    if (!result.success) {
+    if (result.status === "failure") {
       return;
     }
 

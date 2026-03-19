@@ -22,7 +22,9 @@ import { moduleNameToFileName } from "../../types/generation.js";
 import type {
   EngineResult,
   GeneratedModuleSet,
+  ModuleGenerationOutcome,
   ModuleGenerationResult,
+  ModuleGenerationStageResult,
   ModulePlan,
   PlannedModule,
   RepositoryAnalysis,
@@ -66,7 +68,8 @@ export const generateModuleDocs = async (
   onModuleProgress?: ModuleProgressCallback,
   modulesOverride?: PlannedModule[],
   agenticContext?: AgenticGenerationContext,
-): Promise<EngineResult<GeneratedModuleSet>> => {
+): Promise<EngineResult<ModuleGenerationStageResult>> => {
+  const stageStart = Date.now();
   const outputPath = resolveOutputPath(config);
   const modules = [...(modulesOverride ?? plan.modules)].sort((left, right) =>
     left.name.localeCompare(right.name),
@@ -92,8 +95,10 @@ export const generateModuleDocs = async (
     : undefined;
 
   const generatedModules: GeneratedModuleSet = new Map();
+  const outcomes: ModuleGenerationOutcome[] = [];
 
   for (const [index, module] of modules.entries()) {
+    const moduleStart = Date.now();
     const fileName = fileNamesResult.value.get(module.name);
 
     if (!fileName) {
@@ -105,49 +110,45 @@ export const generateModuleDocs = async (
     const filePath = path.join(outputPath, fileName);
 
     let content: string;
+    let outcome: ModuleGenerationOutcome;
 
     if (module.components.length === 0) {
       content = createPlaceholderModulePage(module);
+      outcome = {
+        moduleName: module.name,
+        status: "success",
+        generationPath: useAgenticPath ? "agentic" : "one-shot",
+        fileName,
+        durationMs: Date.now() - moduleStart,
+      };
     } else if (useAgenticPath && collector) {
-      // Agentic path: per-module error handling — failures become placeholders
-      try {
-        const agentResult = await generateModuleAgentic(
-          module,
-          plan,
-          analysis,
-          config,
-          provider,
-          collector,
-          agenticContext,
-        );
-
-        if (agentResult.ok) {
-          content = agentResult.value;
-        } else {
-          content = createFailedModulePlaceholder(
-            module,
-            agentResult.error.message,
-          );
-        }
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        content = createFailedModulePlaceholder(module, message);
-      }
-    } else {
-      // One-shot path: preserve existing error-abort behavior
-      const oneShotResult = await generateModulePage(
+      // Agentic path: per-module error handling
+      const agenticOutcome = await attemptAgenticGeneration(
         module,
         plan,
         analysis,
         config,
         provider,
+        collector,
+        fileName,
+        moduleStart,
+        agenticContext,
       );
-
-      if (!oneShotResult.ok) {
-        return oneShotResult;
-      }
-
-      content = oneShotResult.value;
+      content = agenticOutcome.content;
+      outcome = agenticOutcome.outcome;
+    } else {
+      // One-shot path: per-module error handling (same degradation guarantees)
+      const oneShotOutcome = await attemptOneShotGeneration(
+        module,
+        plan,
+        analysis,
+        config,
+        provider,
+        fileName,
+        moduleStart,
+      );
+      content = oneShotOutcome.content;
+      outcome = oneShotOutcome.outcome;
     }
 
     try {
@@ -160,6 +161,7 @@ export const generateModuleDocs = async (
       });
     }
 
+    outcomes.push(outcome);
     onModuleProgress?.(module.name, index + 1, modules.length);
 
     generatedModules.set(module.name, {
@@ -176,7 +178,166 @@ export const generateModuleDocs = async (
     await collector.persist(outputPath);
   }
 
-  return ok(generatedModules);
+  const successCount = outcomes.filter((o) => o.status === "success").length;
+  const failureCount = outcomes.filter((o) => o.status === "failed").length;
+  const totalObservations = outcomes.reduce(
+    (sum, o) => sum + (o.observationCount ?? 0),
+    0,
+  );
+
+  return ok({
+    outcomes,
+    generatedModules,
+    successCount,
+    failureCount,
+    totalDurationMs: Date.now() - stageStart,
+    observationCount: totalObservations,
+  });
+};
+
+const attemptAgenticGeneration = async (
+  module: PlannedModule,
+  plan: ModulePlan,
+  analysis: RepositoryAnalysis,
+  config: ResolvedRunConfig,
+  provider: InferenceProvider,
+  collector: ObservationCollector,
+  fileName: string,
+  moduleStart: number,
+  agenticContext?: AgenticGenerationContext,
+): Promise<{ content: string; outcome: ModuleGenerationOutcome }> => {
+  try {
+    const agentResult = await generateModuleAgentic(
+      module,
+      plan,
+      analysis,
+      config,
+      provider,
+      collector,
+      agenticContext,
+    );
+
+    if (agentResult.ok) {
+      return {
+        content: agentResult.value,
+        outcome: {
+          moduleName: module.name,
+          status: "success",
+          generationPath: "agentic",
+          fileName,
+          durationMs: Date.now() - moduleStart,
+        },
+      };
+    }
+
+    return {
+      content: createFailedModulePlaceholder(module.name, module.components),
+      outcome: {
+        moduleName: module.name,
+        status: "failed",
+        generationPath: "agentic",
+        fileName,
+        durationMs: Date.now() - moduleStart,
+        failureReason: agentResult.error.message,
+        hasPlaceholderPage: true,
+      },
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return {
+      content: createFailedModulePlaceholder(module.name, module.components),
+      outcome: {
+        moduleName: module.name,
+        status: "failed",
+        generationPath: "agentic",
+        fileName,
+        durationMs: Date.now() - moduleStart,
+        failureReason: message,
+        hasPlaceholderPage: true,
+      },
+    };
+  }
+};
+
+const attemptOneShotGeneration = async (
+  module: PlannedModule,
+  plan: ModulePlan,
+  analysis: RepositoryAnalysis,
+  config: ResolvedRunConfig,
+  provider: InferenceProvider,
+  fileName: string,
+  moduleStart: number,
+): Promise<{ content: string; outcome: ModuleGenerationOutcome }> => {
+  try {
+    const oneShotResult = await generateModulePage(
+      module,
+      plan,
+      analysis,
+      config,
+      provider,
+    );
+
+    if (oneShotResult.ok) {
+      return {
+        content: oneShotResult.value,
+        outcome: {
+          moduleName: module.name,
+          status: "success",
+          generationPath: "one-shot",
+          fileName,
+          durationMs: Date.now() - moduleStart,
+        },
+      };
+    }
+
+    return {
+      content: createFailedModulePlaceholder(module.name, module.components),
+      outcome: {
+        moduleName: module.name,
+        status: "failed",
+        generationPath: "one-shot",
+        fileName,
+        durationMs: Date.now() - moduleStart,
+        failureReason: oneShotResult.error.message,
+        hasPlaceholderPage: true,
+      },
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return {
+      content: createFailedModulePlaceholder(module.name, module.components),
+      outcome: {
+        moduleName: module.name,
+        status: "failed",
+        generationPath: "one-shot",
+        fileName,
+        durationMs: Date.now() - moduleStart,
+        failureReason: message,
+        hasPlaceholderPage: true,
+      },
+    };
+  }
+};
+
+/**
+ * Creates a minimal markdown page for a module that failed to generate.
+ * Failure reasons are intentionally omitted — they belong in the run result.
+ */
+export const createFailedModulePlaceholder = (
+  moduleName: string,
+  components: string[],
+): string => {
+  const lines = [
+    `# ${moduleName}`,
+    "",
+    "> This module page could not be generated. The components listed below are",
+    "> part of this module but their documentation is not yet available.",
+    "",
+    "## Components",
+    "",
+    ...[...components].sort().map((c) => `- ${c}`),
+  ];
+  return lines.join("\n");
 };
 
 const generateModuleAgentic = async (
@@ -274,26 +435,6 @@ const generateModuleAgentic = async (
 
   return ok(assembleAgentPage(module.name, agentResult.sections));
 };
-
-const createFailedModulePlaceholder = (
-  module: PlannedModule,
-  failureReason: string,
-): string =>
-  [
-    `# ${module.name}`,
-    "",
-    module.description,
-    "",
-    "## Status",
-    "",
-    "Module generation failed.",
-    "",
-    `**Reason:** ${failureReason}`,
-    "",
-    "## Components",
-    "",
-    ...module.components.map((c) => `- ${c}`),
-  ].join("\n");
 
 const generateModulePage = async (
   module: PlannedModule,

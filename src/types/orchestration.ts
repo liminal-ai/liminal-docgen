@@ -4,6 +4,7 @@ import type {
 } from "../inference/types.js";
 import type { EngineError } from "./common.js";
 import type { ResolvedConfiguration } from "./configuration.js";
+import type { GeneratedModuleSet } from "./generation.js";
 import type { ModulePlan } from "./planning.js";
 import type { QualityReviewConfig } from "./quality-review.js";
 import type { ValidationResult } from "./validation.js";
@@ -45,42 +46,79 @@ export interface DocumentationRunRequest {
   inference?: InferenceConfiguration;
 }
 
-export type DocumentationRunResult =
-  | DocumentationRunSuccess
-  | DocumentationRunFailure;
+/**
+ * Tri-state run outcome. The `status` field is the single source of truth —
+ * there is no `success` boolean.
+ *
+ * - "success": all modules generated successfully
+ * - "partial-success": at least one module failed, but half or more succeeded
+ * - "failure": more than half of modules failed, or a pipeline-level error occurred
+ */
+export type RunStatus = "success" | "partial-success" | "failure";
 
-export interface DocumentationRunResultBase {
-  mode: "full" | "update";
+/**
+ * Outcome of generating a single module's documentation page.
+ * Every module in the plan produces exactly one outcome.
+ */
+export interface ModuleGenerationOutcome {
+  moduleName: string;
+  status: "success" | "failed";
+  generationPath: "agentic" | "one-shot";
+  fileName: string;
+  durationMs: number;
+  turnCount?: number;
+  toolCallCount?: number;
+  failureReason?: string;
+  hasPlaceholderPage?: boolean;
+  observationCount?: number;
+}
+
+/**
+ * Complete run result. Replaces the former DocumentationRunSuccess |
+ * DocumentationRunFailure union. The `status` field is the discriminant;
+ * there is no `success` boolean.
+ */
+export interface DocumentationRunResult {
+  status: RunStatus;
   runId: string;
-  durationSeconds: number;
+  mode: "full" | "update";
+  moduleOutcomes: ModuleGenerationOutcome[];
+  successCount: number;
+  failureCount: number;
+  totalDurationMs: number;
   warnings: string[];
-}
-
-export interface DocumentationRunSuccess extends DocumentationRunResultBase {
-  success: true;
-  outputPath: string;
-  generatedFiles: string[];
-  modulePlan: ModulePlan;
-  validationResult: ValidationResult;
-  qualityReviewPasses: number;
+  observationCount: number;
   costUsd: number | null;
-  commitHash: string;
-  updatedModules?: string[];
-  unchangedModules?: string[];
-  overviewRegenerated?: boolean;
-}
 
-export interface DocumentationRunFailure extends DocumentationRunResultBase {
-  success: false;
-  failedStage: DocumentationStage;
-  error: EngineError;
+  // Present when status is "success" or "partial-success"
   outputPath?: string;
-  commitHash?: string;
   generatedFiles?: string[];
   modulePlan?: ModulePlan;
   validationResult?: ValidationResult;
   qualityReviewPasses?: number;
-  costUsd?: number | null;
+  commitHash?: string;
+
+  // Present on update runs
+  updatedModules?: string[];
+  unchangedModules?: string[];
+  overviewRegenerated?: boolean;
+
+  // Present when status is "failure" and a pipeline-level error occurred
+  failedStage?: DocumentationStage;
+  error?: EngineError;
+}
+
+/**
+ * Internal result of the module generation stage.
+ * Return value of generateModuleDocs(), not exposed to CLI callers.
+ */
+export interface ModuleGenerationStageResult {
+  outcomes: ModuleGenerationOutcome[];
+  generatedModules: GeneratedModuleSet;
+  successCount: number;
+  failureCount: number;
+  totalDurationMs: number;
+  observationCount: number;
 }
 
 export interface ResolvedRunConfig extends ResolvedConfiguration {
@@ -110,59 +148,32 @@ export interface RunSuccessData {
   overviewRegenerated?: boolean;
 }
 
-// -- Agentic generation types (Story 0 foundation) --
-
 /**
- * Tri-state run outcome. Replaces the binary success/failure discriminant
- * in a future story.
- *
- * - "success": all modules generated successfully
- * - "partial-success": at least one module failed, but half or more succeeded
- * - "failure": more than half of modules failed
+ * Determines run status from module outcomes.
+ * Pure function, no side effects.
  */
-export type RunStatus = "success" | "partial-success" | "failure";
+export function evaluateRunStatus(
+  outcomes: ModuleGenerationOutcome[],
+): RunStatus {
+  const total = outcomes.length;
+  const failureCount = outcomes.filter((o) => o.status === "failed").length;
 
-/**
- * Outcome of generating a single module's documentation page.
- * Every module in the plan produces exactly one outcome.
- */
-export interface ModuleGenerationOutcome {
-  moduleName: string;
-  status: "success" | "failed";
-  generationPath: "agentic" | "one-shot";
-  fileName: string;
-  durationMs: number;
-  turnCount?: number;
-  toolCallCount?: number;
-  failureReason?: string;
-  hasPlaceholderPage?: boolean;
-  observationCount?: number;
+  if (failureCount > total / 2) return "failure";
+  if (failureCount > 0) return "partial-success";
+  return "success";
 }
 
 /**
- * Complete run result for agentic generation. Added alongside the existing
- * DocumentationRunSuccess/DocumentationRunFailure types — these will be
- * unified in Story 5. For now, both representations coexist.
+ * Maps RunStatus to process exit code.
+ * partial-success exits 0 because the user has usable output.
  */
-export interface AgenticDocumentationRunResult {
-  status: RunStatus;
-  runId: string;
-  mode: "full" | "update";
-  moduleOutcomes: ModuleGenerationOutcome[];
-  successCount: number;
-  failureCount: number;
-  totalDurationMs: number;
-  warnings: string[];
-  observationCount: number;
-  costUsd: number | null;
-
-  outputPath?: string;
-  generatedFiles?: string[];
-  modulePlan?: ModulePlan;
-  validationResult?: ValidationResult;
-  qualityReviewPasses?: number;
-  commitHash?: string;
-
-  failedStage?: DocumentationStage;
-  error?: EngineError;
+export function exitCodeForStatus(status: RunStatus): number {
+  switch (status) {
+    case "success":
+      return 0;
+    case "partial-success":
+      return 0;
+    case "failure":
+      return 1;
+  }
 }

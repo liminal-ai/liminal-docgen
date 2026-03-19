@@ -174,11 +174,11 @@ const setupPipelineMocks = (
 const expectSuccess = (
   result: Awaited<ReturnType<typeof generateDocumentation>>,
 ) => {
-  expect(result.success).toBe(true);
+  expect(result.status).not.toBe("failure");
 
-  if (!result.success) {
+  if (result.status === "failure") {
     throw new Error(
-      `Expected success but received ${result.error.code}: ${result.error.message}`,
+      `Expected success but received ${result.error?.code}: ${result.error?.message}`,
     );
   }
 
@@ -188,9 +188,9 @@ const expectSuccess = (
 const expectFailure = (
   result: Awaited<ReturnType<typeof generateDocumentation>>,
 ) => {
-  expect(result.success).toBe(false);
+  expect(result.status).toBe("failure");
 
-  if (result.success) {
+  if (result.status !== "failure") {
     throw new Error("Expected generation to fail");
   }
 
@@ -241,17 +241,17 @@ describe("generateDocumentation", () => {
       "overview.md",
       "utils.md",
     ]);
-    expect(result.validationResult.status).toBe("pass");
+    expect(result.validationResult!.status).toBe("pass");
     expect(result.qualityReviewPasses).toBe(0);
     expect(result.costUsd).toBeGreaterThan(0);
 
     const [corePage, overview, moduleTree, metadata, persistedPlan] =
       await Promise.all([
-        readFile(path.join(result.outputPath, "core.md"), "utf8"),
-        readFile(path.join(result.outputPath, "overview.md"), "utf8"),
-        readFile(path.join(result.outputPath, "module-tree.json"), "utf8"),
-        readFile(path.join(result.outputPath, ".doc-meta.json"), "utf8"),
-        readFile(path.join(result.outputPath, ".module-plan.json"), "utf8"),
+        readFile(path.join(result.outputPath!, "core.md"), "utf8"),
+        readFile(path.join(result.outputPath!, "overview.md"), "utf8"),
+        readFile(path.join(result.outputPath!, "module-tree.json"), "utf8"),
+        readFile(path.join(result.outputPath!, ".doc-meta.json"), "utf8"),
+        readFile(path.join(result.outputPath!, ".module-plan.json"), "utf8"),
       ]);
 
     expect(corePage).toContain("src/index.ts");
@@ -298,20 +298,20 @@ describe("generateDocumentation", () => {
     const result = await runHappyPath();
 
     await expect(
-      access(path.join(result.outputPath, "core.md")),
+      access(path.join(result.outputPath!, "core.md")),
     ).resolves.toBeUndefined();
     await expect(
-      access(path.join(result.outputPath, "api.md")),
+      access(path.join(result.outputPath!, "api.md")),
     ).resolves.toBeUndefined();
     await expect(
-      access(path.join(result.outputPath, "utils.md")),
+      access(path.join(result.outputPath!, "utils.md")),
     ).resolves.toBeUndefined();
   });
 
   it("TC-1.4b: module page references components", async () => {
     const result = await runHappyPath();
     const corePage = await readFile(
-      path.join(result.outputPath, "core.md"),
+      path.join(result.outputPath!, "core.md"),
       "utf8",
     );
 
@@ -348,7 +348,7 @@ describe("generateDocumentation", () => {
     );
 
     expect(result.failedStage).toBe("resolving-configuration");
-    expect(result.error.code).toBe("CONFIGURATION_ERROR");
+    expect(result.error!.code).toBe("CONFIGURATION_ERROR");
     expect(createSdkSpy).not.toHaveBeenCalled();
     expect(environmentSpy).not.toHaveBeenCalled();
     expect(analysisSpy).not.toHaveBeenCalled();
@@ -406,7 +406,7 @@ describe("generateDocumentation", () => {
     );
 
     const emptyPage = await readFile(
-      path.join(result.outputPath, "empty.md"),
+      path.join(result.outputPath!, "empty.md"),
       "utf8",
     );
     expect(emptyPage).toContain("No repository components were assigned");
@@ -416,14 +416,14 @@ describe("generateDocumentation", () => {
     const result = await runHappyPath();
 
     await expect(
-      access(path.join(result.outputPath, "overview.md")),
+      access(path.join(result.outputPath!, "overview.md")),
     ).resolves.toBeUndefined();
   });
 
   it("TC-1.5b: overview references modules", async () => {
     const result = await runHappyPath();
     const overview = await readFile(
-      path.join(result.outputPath, "overview.md"),
+      path.join(result.outputPath!, "overview.md"),
       "utf8",
     );
 
@@ -435,7 +435,7 @@ describe("generateDocumentation", () => {
   it("TC-1.5c: overview includes Mermaid", async () => {
     const result = await runHappyPath();
     const overview = await readFile(
-      path.join(result.outputPath, "overview.md"),
+      path.join(result.outputPath!, "overview.md"),
       "utf8",
     );
 
@@ -500,7 +500,7 @@ describe("generateDocumentation", () => {
       await generateDocumentation(withInference({ mode: "full", repoPath })),
     );
     const corePage = await readFile(
-      path.join(result.outputPath, "api.md"),
+      path.join(result.outputPath!, "api.md"),
       "utf8",
     );
 
@@ -570,7 +570,7 @@ describe("generateDocumentation", () => {
       await generateDocumentation(withInference({ mode: "full", repoPath })),
     );
     const apiPage = await readFile(
-      path.join(result.outputPath, "api.md"),
+      path.join(result.outputPath!, "api.md"),
       "utf8",
     );
 
@@ -649,7 +649,7 @@ describe("generateDocumentation", () => {
       await generateDocumentation(withInference({ mode: "full", repoPath })),
     );
     const apiPage = await readFile(
-      path.join(result.outputPath, "api.md"),
+      path.join(result.outputPath!, "api.md"),
       "utf8",
     );
 
@@ -703,7 +703,7 @@ describe("generateDocumentation", () => {
       await generateDocumentation(withInference({ mode: "full", repoPath })),
     );
     const apiPage = await readFile(
-      path.join(result.outputPath, "api.md"),
+      path.join(result.outputPath!, "api.md"),
       "utf8",
     );
 
@@ -746,7 +746,7 @@ describe("generateDocumentation", () => {
       await generateDocumentation(withInference({ mode: "full", repoPath })),
     );
     const apiPage = await readFile(
-      path.join(result.outputPath, "api.md"),
+      path.join(result.outputPath!, "api.md"),
       "utf8",
     );
 
@@ -761,7 +761,7 @@ describe("generateDocumentation", () => {
     expect(
       JSON.parse(
         await readFile(
-          path.join(result.outputPath, "module-tree.json"),
+          path.join(result.outputPath!, "module-tree.json"),
           "utf8",
         ),
       ),
@@ -829,7 +829,7 @@ describe("generateDocumentation", () => {
     expect(
       JSON.parse(
         await readFile(
-          path.join(result.outputPath, "module-tree.json"),
+          path.join(result.outputPath!, "module-tree.json"),
           "utf8",
         ),
       ),
@@ -884,13 +884,13 @@ describe("generateDocumentation", () => {
     );
 
     await expect(
-      access(path.join(result.outputPath, "auth-middleware.md")),
+      access(path.join(result.outputPath!, "auth-middleware.md")),
     ).resolves.toBeUndefined();
   });
 
   it("TC-1.7a: structural convention", async () => {
     const result = await runHappyPath();
-    const actualFiles = await readdir(result.outputPath);
+    const actualFiles = await readdir(result.outputPath!);
 
     expect(new Set(actualFiles)).toEqual(
       new Set([
@@ -909,7 +909,7 @@ describe("generateDocumentation", () => {
     const result = await runHappyPath();
 
     expect(result.validationResult).toBeDefined();
-    expect(result.validationResult.status).toBe("pass");
+    expect(result.validationResult!.status).toBe("pass");
     expect(result.validationResult).toHaveProperty("errorCount");
     expect(result.validationResult).toHaveProperty("warningCount");
     expect(result.validationResult).toHaveProperty("findings");
@@ -953,7 +953,7 @@ describe("generateDocumentation", () => {
     const result = await runHappyPath();
 
     const metadata = JSON.parse(
-      await readFile(path.join(result.outputPath, ".doc-meta.json"), "utf8"),
+      await readFile(path.join(result.outputPath!, ".doc-meta.json"), "utf8"),
     ) as Record<string, unknown>;
     expect(metadata).toMatchObject({
       commitHash: result.commitHash,
@@ -967,20 +967,23 @@ describe("generateDocumentation", () => {
     const result = await runHappyPath();
 
     await expect(
-      access(path.join(result.outputPath, ".module-plan.json")),
+      access(path.join(result.outputPath!, ".module-plan.json")),
     ).resolves.toBeUndefined();
   });
 
   it("TC-1.10b: persisted plan matches result", async () => {
     const result = await runHappyPath();
     const persistedPlan = JSON.parse(
-      await readFile(path.join(result.outputPath, ".module-plan.json"), "utf8"),
+      await readFile(
+        path.join(result.outputPath!, ".module-plan.json"),
+        "utf8",
+      ),
     ) as ModulePlan;
 
     expect(persistedPlan).toEqual(result.modulePlan);
   });
 
-  it("non-TC: module generation session timeout", async () => {
+  it("non-TC: module generation session timeout produces partial-success", async () => {
     const repoPath = createRepo();
     setupPipelineMocks(repoPath, {
       sdkConfig: {
@@ -994,12 +997,13 @@ describe("generateDocumentation", () => {
       },
     });
 
-    const result = expectFailure(
+    // With graceful degradation, 1 of 3 modules failing is partial-success
+    const result = expectSuccess(
       await generateDocumentation(withInference({ mode: "full", repoPath })),
     );
 
-    expect(result.failedStage).toBe("generating-module");
-    expect(result.error.message).toContain("Module generation failed");
+    expect(result.status).toBe("partial-success");
+    expect(result.warnings.length).toBeGreaterThan(0);
   });
 
   it("non-TC: overview with zero cross-links", async () => {
@@ -1043,7 +1047,7 @@ describe("generateDocumentation", () => {
       await generateDocumentation(withInference({ mode: "full", repoPath })),
     );
 
-    expect(result.validationResult.status).toBe("pass");
+    expect(result.validationResult!.status).toBe("pass");
     expect(result.generatedFiles).toContain("standalone.md");
   });
 
@@ -1093,8 +1097,8 @@ describe("generateDocumentation", () => {
     );
 
     expect(result.failedStage).toBe("generating-module");
-    expect(result.error.code).toBe("ORCHESTRATION_ERROR");
-    expect(result.error.details).toMatchObject({
+    expect(result.error!.code).toBe("ORCHESTRATION_ERROR");
+    expect(result.error!.details).toMatchObject({
       collisions: [
         {
           fileName: "mymodule.md",
@@ -1117,6 +1121,6 @@ describe("generateDocumentation", () => {
     );
 
     expect(result.failedStage).toBe("planning-modules");
-    expect(result.error.code).toBe("ORCHESTRATION_ERROR");
+    expect(result.error!.code).toBe("ORCHESTRATION_ERROR");
   });
 });

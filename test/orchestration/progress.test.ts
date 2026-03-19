@@ -174,11 +174,11 @@ const setupPipelineMocks = (
 const expectSuccess = (
   result: Awaited<ReturnType<typeof generateDocumentation>>,
 ) => {
-  expect(result.success).toBe(true);
+  expect(result.status).not.toBe("failure");
 
-  if (!result.success) {
+  if (result.status === "failure") {
     throw new Error(
-      `Expected success but received ${result.error.code}: ${result.error.message}`,
+      `Expected success but received ${result.error!.code}: ${result.error!.message}`,
     );
   }
 
@@ -349,7 +349,7 @@ describe("generateDocumentation progress and result assembly", () => {
 
     const { result } = await runWithProgress(repoPath);
 
-    expect(result.success).toBe(true);
+    expect(result.status).not.toBe("failure");
     expect(result.outputPath).toBe(path.join(repoPath, "docs/wiki"));
     expect(result.generatedFiles).toEqual([
       ".doc-meta.json",
@@ -367,7 +367,7 @@ describe("generateDocumentation progress and result assembly", () => {
       status: "pass",
       warningCount: 0,
     });
-    expect(result.durationSeconds).toBeGreaterThan(0);
+    expect(result.totalDurationMs).toBeGreaterThan(0);
     expect(result.commitHash).toBe("0123456789abcdef0123456789abcdef01234567");
     expect(result.qualityReviewPasses).toBe(0);
   });
@@ -442,8 +442,8 @@ describe("generateDocumentation progress and result assembly", () => {
 
     const { result } = await runWithProgress(repoPath);
 
-    expect(result.validationResult.status).toBe("warn");
-    expect(result.validationResult.warningCount).toBe(1);
+    expect(result.validationResult!.status).toBe("warn");
+    expect(result.validationResult!.warningCount).toBe(1);
     expect(result.warnings).toEqual(
       expect.arrayContaining([
         expect.stringContaining('Thin module "thin"'),
@@ -460,7 +460,7 @@ describe("generateDocumentation progress and result assembly", () => {
       await generateDocumentation(withInference({ mode: "full", repoPath })),
     );
 
-    expect(result.success).toBe(true);
+    expect(result.status).not.toBe("failure");
   });
 
   it("progress callback errors are swallowed", async () => {
@@ -481,7 +481,7 @@ describe("generateDocumentation progress and result assembly", () => {
       ),
     );
 
-    expect(result.success).toBe(true);
+    expect(result.status).not.toBe("failure");
     expect(events.some((event) => event.stage === "complete")).toBe(true);
   });
 

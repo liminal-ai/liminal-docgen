@@ -3,8 +3,7 @@ import type { InferenceProvider } from "../inference/types.js";
 import type { EngineError } from "../types/common.js";
 import type {
   DocumentationProgressEvent,
-  DocumentationRunFailure,
-  DocumentationRunSuccess,
+  DocumentationRunResult,
   DocumentationStage,
   ProgressCallback,
   RunSuccessData,
@@ -82,19 +81,23 @@ export class RunContext {
     return Math.max((Date.now() - this.startTime) / 1000, 0.001);
   }
 
-  assembleSuccessResult(data: RunSuccessData): DocumentationRunSuccess {
+  assembleSuccessResult(data: RunSuccessData): DocumentationRunResult {
     return {
-      success: true,
+      status: "success",
       mode: this.mode,
       runId: this.runId,
-      durationSeconds: this.getDurationSeconds(),
+      moduleOutcomes: [],
+      successCount: 0,
+      failureCount: 0,
+      totalDurationMs: Math.round(this.getDurationSeconds() * 1000),
       warnings: this.getWarnings(),
+      observationCount: 0,
+      costUsd: this.inferenceProvider.computeCost(),
       outputPath: data.outputPath,
       generatedFiles: data.generatedFiles,
       modulePlan: data.modulePlan,
       validationResult: data.validationResult,
       qualityReviewPasses: data.qualityReviewPasses,
-      costUsd: this.inferenceProvider.computeCost(),
       commitHash: data.commitHash,
       updatedModules: data.updatedModules,
       unchangedModules: data.unchangedModules,
@@ -105,8 +108,8 @@ export class RunContext {
   assembleFailureResult(
     stage: DocumentationStage,
     error: EngineError,
-    extra?: Partial<DocumentationRunFailure>,
-  ): DocumentationRunFailure {
+    extra?: Partial<DocumentationRunResult>,
+  ): DocumentationRunResult {
     const generatedFiles = mergeGeneratedFiles(
       this.getGeneratedFiles(),
       extra?.generatedFiles,
@@ -115,14 +118,18 @@ export class RunContext {
     this.emitProgress("failed");
 
     return {
-      ...extra,
-      ...(generatedFiles ? { generatedFiles } : {}),
-      costUsd: this.inferenceProvider.computeCost(),
-      success: false,
+      status: "failure",
       mode: this.mode,
       runId: this.runId,
-      durationSeconds: this.getDurationSeconds(),
+      moduleOutcomes: [],
+      successCount: 0,
+      failureCount: 0,
+      totalDurationMs: Math.round(this.getDurationSeconds() * 1000),
       warnings: this.getWarnings(),
+      observationCount: 0,
+      costUsd: this.inferenceProvider.computeCost(),
+      ...extra,
+      ...(generatedFiles ? { generatedFiles } : {}),
       failedStage: stage,
       error,
     };

@@ -90,11 +90,11 @@ const runFixtureGeneration = async (repoPath: string): Promise<string> => {
     repoPath,
   });
 
-  expect(result.success).toBe(true);
+  expect(result.status).not.toBe("failure");
 
-  if (!result.success) {
+  if (result.status === "failure") {
     throw new Error(
-      `Expected generation to succeed: ${result.error.code} ${result.error.message}`,
+      `Expected generation to succeed: ${result.error!.code} ${result.error!.message}`,
     );
   }
 

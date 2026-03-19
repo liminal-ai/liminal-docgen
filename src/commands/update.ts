@@ -106,17 +106,17 @@ export default defineCommand({
     }
 
     if (args.json) {
-      if (result.success) {
+      if (result.status !== "failure") {
         writeJsonResult("update", result);
       } else {
-        writeJsonError("update", result.error, {
+        writeJsonError("update", result.error!, {
           failedStage: result.failedStage,
         });
       }
     } else {
       writeHumanRunResult(result);
 
-      if (!result.success) {
+      if (result.status === "failure" && result.error) {
         writeHumanError(result.error);
       }
     }

@@ -119,21 +119,34 @@ export function writeHumanValidation(result: ValidationResult): void {
 }
 
 export function writeHumanRunResult(result: DocumentationRunResult): void {
+  const statusLabel =
+    result.status === "success"
+      ? "SUCCESS"
+      : result.status === "partial-success"
+        ? "PARTIAL SUCCESS"
+        : "FAILURE";
+
   const lines = [
-    `${result.mode === "full" ? "Generate" : "Update"}: ${result.success ? "SUCCESS" : "FAILURE"}`,
+    `${result.mode === "full" ? "Generate" : "Update"}: ${statusLabel}`,
     `Run ID: ${result.runId}`,
-    `Duration (seconds): ${result.durationSeconds}`,
+    `Duration (ms): ${result.totalDurationMs}`,
   ];
 
   if (result.outputPath) {
     lines.push(`Output path: ${result.outputPath}`);
   }
 
-  if (result.success) {
-    lines.push(`Generated files: ${result.generatedFiles.length}`);
-    lines.push(`Commit hash: ${result.commitHash}`);
+  if (result.status === "success" || result.status === "partial-success") {
+    if (result.generatedFiles) {
+      lines.push(`Generated files: ${result.generatedFiles.length}`);
+    }
+    if (result.commitHash) {
+      lines.push(`Commit hash: ${result.commitHash}`);
+    }
     lines.push(`Cost (USD): ${result.costUsd ?? "n/a"}`);
-  } else {
+  }
+
+  if (result.failedStage) {
     lines.push(`Failed stage: ${result.failedStage}`);
   }
 
@@ -142,6 +155,18 @@ export function writeHumanRunResult(result: DocumentationRunResult): void {
   }
 
   writeStdout(lines.join("\n"));
+
+  // Print failed module warnings to stderr on partial-success
+  if (result.status === "partial-success") {
+    const failedModules = result.moduleOutcomes
+      .filter((o) => o.status === "failed")
+      .map((o) => o.moduleName);
+    if (failedModules.length > 0) {
+      writeStderr(
+        `Warning: ${failedModules.length} module(s) failed to generate: ${failedModules.join(", ")}`,
+      );
+    }
+  }
 }
 
 export function writeHumanPublishResult(result: PublishResult): void {

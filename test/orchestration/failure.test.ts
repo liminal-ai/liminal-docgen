@@ -207,11 +207,11 @@ const setupPipelineMocks = (
 const expectSuccess = (
   result: Awaited<ReturnType<typeof generateDocumentation>>,
 ) => {
-  expect(result.success).toBe(true);
+  expect(result.status).not.toBe("failure");
 
-  if (!result.success) {
+  if (result.status === "failure") {
     throw new Error(
-      `Expected success but received ${result.error.code}: ${result.error.message}`,
+      `Expected success but received ${result.error!.code}: ${result.error!.message}`,
     );
   }
 
@@ -221,9 +221,9 @@ const expectSuccess = (
 const expectFailure = (
   result: Awaited<ReturnType<typeof generateDocumentation>>,
 ) => {
-  expect(result.success).toBe(false);
+  expect(result.status).toBe("failure");
 
-  if (result.success) {
+  if (result.status !== "failure") {
     throw new Error("Expected generation to fail");
   }
 
@@ -286,7 +286,7 @@ describe("generateDocumentation failure handling", () => {
     );
 
     expect(result.failedStage).toBe("checking-environment");
-    expect(result.error.code).toBe("DEPENDENCY_MISSING");
+    expect(result.error!.code).toBe("DEPENDENCY_MISSING");
     expect(querySpy).not.toHaveBeenCalled();
   });
 
@@ -303,11 +303,11 @@ describe("generateDocumentation failure handling", () => {
     );
 
     expect(result.failedStage).toBe("analyzing-structure");
-    expect(result.error.code).toBe("ANALYSIS_ERROR");
+    expect(result.error!.code).toBe("ANALYSIS_ERROR");
     expect(querySpy).not.toHaveBeenCalled();
   });
 
-  it("TC-5.2a: module generation failure", async () => {
+  it("TC-5.2a: module generation failure produces partial-success with graceful degradation", async () => {
     const repoPath = createRepo();
     const events: DocumentationProgressEvent[] = [];
 
@@ -331,7 +331,7 @@ describe("generateDocumentation failure handling", () => {
       ok(FIVE_MODULE_PLAN),
     );
 
-    const result = expectFailure(
+    const result = expectSuccess(
       await generateDocumentation(
         withInference({ mode: "full", repoPath }),
         (event) => {
@@ -340,25 +340,13 @@ describe("generateDocumentation failure handling", () => {
       ),
     );
 
-    expect(result.failedStage).toBe("generating-module");
-    expect(result.error.message).toBe("Module generation failed");
-    expect(result.error.details).toMatchObject({
-      moduleName: "module-3",
-    });
+    // 1 of 5 modules failed → partial-success (graceful degradation)
+    expect(result.status).toBe("partial-success");
+    expect(result.warnings.length).toBeGreaterThan(0);
+    // All 5 modules should have progress events (failed module gets placeholder)
     expect(
       events.filter((event) => event.stage === "generating-module"),
-    ).toEqual([
-      expect.objectContaining({
-        completed: 1,
-        moduleName: "module-1",
-        total: 5,
-      }),
-      expect.objectContaining({
-        completed: 2,
-        moduleName: "module-2",
-        total: 5,
-      }),
-    ]);
+    ).toHaveLength(5);
   });
 
   it("TC-5.2b: overview failure preserves module docs on disk", async () => {
@@ -421,7 +409,7 @@ describe("generateDocumentation failure handling", () => {
     );
 
     expect(result.failedStage).toBe("planning-modules");
-    expect(result.error.code).toBe("ORCHESTRATION_ERROR");
+    expect(result.error!.code).toBe("ORCHESTRATION_ERROR");
   });
 
   it("TC-5.3a: validation warnings do not fail the run", async () => {
@@ -445,8 +433,8 @@ describe("generateDocumentation failure handling", () => {
       }),
     );
 
-    expect(result.validationResult.status).toBe("warn");
-    expect(result.validationResult.errorCount).toBe(0);
+    expect(result.validationResult!.status).toBe("warn");
+    expect(result.validationResult!.errorCount).toBe(0);
     expect(result.warnings).not.toHaveLength(0);
   });
 
@@ -478,7 +466,7 @@ describe("generateDocumentation failure handling", () => {
     ).rejects.toMatchObject({ code: "ENOENT" });
   });
 
-  it("TC-5.4a: partial output remains on disk after module failure", async () => {
+  it("TC-5.4a: all module output remains on disk with graceful degradation", async () => {
     const repoPath = createRepo();
 
     setupPipelineMocks(repoPath, {
@@ -501,28 +489,23 @@ describe("generateDocumentation failure handling", () => {
       ok(FIVE_MODULE_PLAN),
     );
 
-    const result = expectFailure(
+    // With graceful degradation, 1/5 failure → partial-success, all output on disk
+    const result = expectSuccess(
       await generateDocumentation(withInference({ mode: "full", repoPath })),
     );
     const outputPath = path.join(repoPath, "docs/wiki");
 
-    expect(result.generatedFiles).toEqual([
-      "module-1.md",
-      "module-2.md",
-      "module-3.md",
-    ]);
-    await expect(
-      access(path.join(outputPath, "module-1.md")),
-    ).resolves.toBeUndefined();
-    await expect(
-      access(path.join(outputPath, "module-2.md")),
-    ).resolves.toBeUndefined();
-    await expect(
-      access(path.join(outputPath, "module-3.md")),
-    ).resolves.toBeUndefined();
+    expect(result.status).toBe("partial-success");
+    // All 5 module pages should exist on disk (failed ones get placeholders)
+    for (const module of FIVE_MODULE_PLAN.modules) {
+      await expect(
+        access(path.join(outputPath, `${module.name}.md`)),
+      ).resolves.toBeUndefined();
+    }
+    // Metadata should exist because partial-success proceeds to finalization
     await expect(
       access(path.join(outputPath, METADATA_FILE_NAME)),
-    ).rejects.toMatchObject({ code: "ENOENT" });
+    ).resolves.toBeUndefined();
   });
 
   it("TC-5.4b: failed runs do not update prior metadata", async () => {
@@ -577,7 +560,7 @@ describe("generateDocumentation failure handling", () => {
     expect(events.at(-1)?.stage).toBe("failed");
   });
 
-  it("TC-3.5a: failed result structure", async () => {
+  it("TC-3.5a: partial-success result structure with per-module outcomes", async () => {
     const repoPath = createRepo();
 
     setupPipelineMocks(repoPath, {
@@ -600,13 +583,15 @@ describe("generateDocumentation failure handling", () => {
       ok(FIVE_MODULE_PLAN),
     );
 
-    const result = expectFailure(
+    // 1/5 module fails → partial-success with graceful degradation
+    const result = expectSuccess(
       await generateDocumentation(withInference({ mode: "full", repoPath })),
     );
 
-    expect(result.failedStage).toBe("generating-module");
-    expect(result.error.code).toBe("ORCHESTRATION_ERROR");
-    expect(result.error.message).toBeTruthy();
+    expect(result.status).toBe("partial-success");
+    expect(result.moduleOutcomes.length).toBe(5);
+    expect(result.failureCount).toBe(1);
+    expect(result.successCount).toBe(4);
   });
 
   it("failure at metadata-write stage returns partial artifacts without metadata", async () => {
@@ -684,19 +669,19 @@ describe("generateDocumentation failure handling", () => {
     );
 
     expect(planningFailure.failedStage).toBe("planning-modules");
-    expect(planningFailure.error.details).toMatchObject({
+    expect(planningFailure.error!.details).toMatchObject({
       code: "ORCHESTRATION_ERROR",
       message: "Inference provider network timeout during planning",
     });
     expect(overviewFailure.failedStage).toBe("generating-overview");
-    expect(overviewFailure.error.details).toMatchObject({
+    expect(overviewFailure.error!.details).toMatchObject({
       providerError: {
         message: "Inference provider network timeout during overview",
       },
     });
   });
 
-  it("double failure still returns the primary stage error", async () => {
+  it("single module failure with progress callback produces partial-success", async () => {
     const repoPath = createRepo();
 
     setupPipelineMocks(repoPath, {
@@ -719,18 +704,15 @@ describe("generateDocumentation failure handling", () => {
       ok(FIVE_MODULE_PLAN),
     );
 
-    const result = expectFailure(
+    // With graceful degradation, 1/5 failing → partial-success
+    const result = expectSuccess(
       await generateDocumentation(
         withInference({ mode: "full", repoPath }),
-        (event) => {
-          if (event.stage === "failed") {
-            throw new Error("progress callback failed");
-          }
-        },
+        () => {},
       ),
     );
 
-    expect(result.failedStage).toBe("generating-module");
-    expect(result.error.message).toBe("Module generation failed");
+    expect(result.status).toBe("partial-success");
+    expect(result.warnings.length).toBeGreaterThan(0);
   });
 });

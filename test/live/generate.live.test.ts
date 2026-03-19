@@ -128,7 +128,7 @@ describe("live provider generation", () => {
     expect(generateEnvelope.success).toBe(true);
     expect(generateEnvelope.result?.generatedFiles).toContain("overview.md");
     expect(generateEnvelope.result?.validationResult?.status).not.toBe("fail");
-    expect(generateEnvelope.result?.durationSeconds).toBeGreaterThan(0);
+    expect(generateEnvelope.result?.totalDurationMs).toBeGreaterThan(0);
 
     const validateRun = await runCli(
       [
@@ -180,7 +180,7 @@ describe("live provider generation", () => {
     recordTiming({
       authMode: "oauth",
       costUsd: generateEnvelope.result?.costUsd ?? null,
-      durationSeconds: generateEnvelope.result?.durationSeconds ?? 0,
+      durationSeconds: (generateEnvelope.result?.totalDurationMs ?? 0) / 1000,
       fixtureName: repo.fixtureName,
       provider: "claude-cli",
       surface: "cli",
@@ -205,20 +205,20 @@ const expectSuccessfulGeneration = async (
     repoPath: repo.repoPath,
   });
 
-  expect(result.success).toBe(true);
+  expect(result.status).not.toBe("failure");
 
-  if (!result.success) {
+  if (result.status === "failure") {
     throw new Error(
-      `Expected generation to succeed: ${result.error.code} ${result.error.message}`,
+      `Expected generation to succeed: ${result.error?.code} ${result.error?.message}`,
     );
   }
 
-  expect(result.modulePlan.modules.length).toBeGreaterThan(0);
+  expect(result.modulePlan!.modules.length).toBeGreaterThan(0);
   expect(result.generatedFiles).toContain(".doc-meta.json");
   expect(result.generatedFiles).toContain(".module-plan.json");
   expect(result.generatedFiles).toContain("module-tree.json");
   expect(result.generatedFiles).toContain("overview.md");
-  expect(result.validationResult.status).not.toBe("fail");
+  expect(result.validationResult!.status).not.toBe("fail");
 
   const outputPath = path.join(repo.repoPath, "docs", "wiki");
   await access(path.join(outputPath, "overview.md"));
@@ -233,7 +233,7 @@ const expectSuccessfulGeneration = async (
   }
 
   expect(metadataResult.value.commitHash).toBe(result.commitHash);
-  expect(result.durationSeconds).toBeGreaterThan(0);
+  expect(result.totalDurationMs).toBeGreaterThan(0);
 
   const moduleTree = readJsonFile<Array<{ name?: string }>>(
     path.join(outputPath, "module-tree.json"),
@@ -244,7 +244,7 @@ const expectSuccessfulGeneration = async (
   recordTiming({
     authMode,
     costUsd: result.costUsd,
-    durationSeconds: result.durationSeconds,
+    durationSeconds: result.totalDurationMs / 1000,
     fixtureName: repo.fixtureName,
     provider: inference.provider,
     surface: "sdk",

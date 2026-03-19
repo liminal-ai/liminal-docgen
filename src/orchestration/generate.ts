@@ -12,11 +12,11 @@ import { err } from "../types/common.js";
 import { moduleNameToFileName } from "../types/generation.js";
 import type {
   ChangedFile,
-  DocumentationRunFailure,
   DocumentationRunRequest,
   DocumentationRunResult,
   DocumentationStage,
   GeneratedModuleSet,
+  ModuleGenerationStageResult,
   ModulePlan,
   PlannedModule,
   ProgressCallback,
@@ -25,6 +25,7 @@ import type {
   ValidationAndReviewResult,
   ValidationResult,
 } from "../types/index.js";
+import { evaluateRunStatus } from "../types/orchestration.js";
 import { resolveOutputPath } from "./output-path.js";
 import { RunContext } from "./run-context.js";
 import { runEnvironmentCheck } from "./stages/environment-check.js";
@@ -170,7 +171,32 @@ const runFullGeneration = async (
     );
   }
 
-  const moduleDocs = moduleDocsResult.value;
+  const stageResult = moduleDocsResult.value;
+  const runStatus = evaluateRunStatus(stageResult.outcomes);
+
+  // On "failure" status (>half modules failed), skip downstream stages
+  if (runStatus === "failure") {
+    return assembleModuleFailureResult(context, stageResult, {
+      commitHash: analysis.commitHash,
+      modulePlan,
+      outputPath,
+    });
+  }
+
+  // On "success" or "partial-success", proceed to overview/validation
+  const moduleDocs = stageResult.generatedModules;
+
+  // Add warnings for failed modules on partial-success
+  if (runStatus === "partial-success") {
+    for (const outcome of stageResult.outcomes) {
+      if (outcome.status === "failed") {
+        context.addWarning(
+          `Module "${outcome.moduleName}" failed to generate: ${outcome.failureReason ?? "unknown error"}`,
+        );
+      }
+    }
+  }
+
   context.emitProgress("generating-overview");
   const overviewResult = await generateOverview(
     moduleDocs,
@@ -187,6 +213,10 @@ const runFullGeneration = async (
         commitHash: analysis.commitHash,
         modulePlan,
         outputPath,
+        moduleOutcomes: stageResult.outcomes,
+        successCount: stageResult.successCount,
+        failureCount: stageResult.failureCount,
+        observationCount: stageResult.observationCount,
       },
     );
   }
@@ -209,7 +239,7 @@ const runFullGeneration = async (
 
   context.recordGeneratedFile("module-tree.json");
 
-  return finalizeRun(config, context, {
+  return finalizeRun(config, context, stageResult, {
     commitHash: analysis.commitHash,
     generatedFiles: collectOutputFiles(getModuleNames(modulePlan), {
       includeMetadata: true,
@@ -370,7 +400,32 @@ const runUpdateGeneration = async (
     );
   }
 
-  const moduleDocs = moduleDocsResult.value;
+  const stageResult = moduleDocsResult.value;
+  const runStatus = evaluateRunStatus(stageResult.outcomes);
+
+  // On "failure" status, skip downstream stages
+  if (runStatus === "failure") {
+    return assembleModuleFailureResult(context, stageResult, {
+      commitHash: analysis.commitHash,
+      modulePlan: updatedPlan,
+      outputPath,
+      updatedModules: affectedModules.modulesToRegenerate,
+      unchangedModules: affectedModules.unchangedModules,
+    });
+  }
+
+  // Add warnings for failed modules on partial-success
+  if (runStatus === "partial-success") {
+    for (const outcome of stageResult.outcomes) {
+      if (outcome.status === "failed") {
+        context.addWarning(
+          `Module "${outcome.moduleName}" failed to generate: ${outcome.failureReason ?? "unknown error"}`,
+        );
+      }
+    }
+  }
+
+  const moduleDocs = stageResult.generatedModules;
   const removedModulesResult = await removeModulePages(
     affectedModules.modulesToRemove,
     outputPath,
@@ -448,7 +503,7 @@ const runUpdateGeneration = async (
     context.recordGeneratedFile("module-tree.json");
   }
 
-  return finalizeRun(config, context, {
+  return finalizeRun(config, context, stageResult, {
     commitHash: analysis.commitHash,
     generatedFiles: collectOutputFiles(getModuleNames(updatedPlan), {
       includeMetadata: true,
@@ -462,9 +517,45 @@ const runUpdateGeneration = async (
   });
 };
 
+const assembleModuleFailureResult = (
+  context: RunContext,
+  stageResult: ModuleGenerationStageResult,
+  options: {
+    commitHash: string;
+    modulePlan: ModulePlan;
+    outputPath: string;
+    updatedModules?: string[];
+    unchangedModules?: string[];
+  },
+): DocumentationRunResult => {
+  const failedModuleNames = stageResult.outcomes
+    .filter((o) => o.status === "failed")
+    .map((o) => o.moduleName);
+
+  return context.assembleFailureResult(
+    "generating-module",
+    {
+      code: "ORCHESTRATION_ERROR",
+      message: `Module generation failed: ${stageResult.failureCount} of ${stageResult.outcomes.length} modules failed (${failedModuleNames.join(", ")})`,
+    },
+    {
+      commitHash: options.commitHash,
+      modulePlan: options.modulePlan,
+      outputPath: options.outputPath,
+      moduleOutcomes: stageResult.outcomes,
+      successCount: stageResult.successCount,
+      failureCount: stageResult.failureCount,
+      observationCount: stageResult.observationCount,
+      updatedModules: options.updatedModules,
+      unchangedModules: options.unchangedModules,
+    },
+  );
+};
+
 const finalizeRun = async (
   config: ResolvedRunConfig,
   context: RunContext,
+  stageResult: ModuleGenerationStageResult,
   options: {
     commitHash: string;
     generatedFiles: string[];
@@ -525,6 +616,10 @@ const finalizeRun = async (
         modulePlan: options.modulePlan,
         outputPath: options.outputPath,
         qualityReviewPasses: validationError?.qualityReviewPasses,
+        moduleOutcomes: stageResult.outcomes,
+        successCount: stageResult.successCount,
+        failureCount: stageResult.failureCount,
+        observationCount: stageResult.observationCount,
       },
     );
   }
@@ -542,6 +637,10 @@ const finalizeRun = async (
         outputPath: options.outputPath,
         qualityReviewPasses: validationResult.qualityReviewPasses,
         validationResult: validationResult.validationResult,
+        moduleOutcomes: stageResult.outcomes,
+        successCount: stageResult.successCount,
+        failureCount: stageResult.failureCount,
+        observationCount: stageResult.observationCount,
       },
     );
   }
@@ -572,6 +671,10 @@ const finalizeRun = async (
         outputPath: options.outputPath,
         qualityReviewPasses: validationResult.qualityReviewPasses,
         validationResult: validationResult.validationResult,
+        moduleOutcomes: stageResult.outcomes,
+        successCount: stageResult.successCount,
+        failureCount: stageResult.failureCount,
+        observationCount: stageResult.observationCount,
       },
     );
   }
@@ -581,7 +684,18 @@ const finalizeRun = async (
   }
 
   context.emitProgress("complete");
-  return context.assembleSuccessResult(finalRunData);
+  const runStatus = evaluateRunStatus(stageResult.outcomes);
+  const successResult = context.assembleSuccessResult(finalRunData);
+
+  // Override with module outcome data
+  return {
+    ...successResult,
+    status: runStatus,
+    moduleOutcomes: stageResult.outcomes,
+    successCount: stageResult.successCount,
+    failureCount: stageResult.failureCount,
+    observationCount: stageResult.observationCount,
+  };
 };
 
 const removeModulePages = async (moduleNames: string[], outputPath: string) => {
@@ -697,8 +811,8 @@ const ensureInferenceProviderInitialized = (
   context: RunContext,
   stage: DocumentationStage,
   config: ResolvedRunConfig,
-  extra?: Partial<DocumentationRunFailure>,
-): DocumentationRunFailure | null => {
+  extra?: Partial<DocumentationRunResult>,
+): DocumentationRunResult | null => {
   try {
     context.setInferenceProvider(
       createInferenceRuntime(config.inference, {

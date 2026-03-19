@@ -235,11 +235,11 @@ const setupPipelineMocks = (
 const expectSuccess = (
   result: Awaited<ReturnType<typeof generateDocumentation>>,
 ) => {
-  expect(result.success).toBe(true);
+  expect(result.status).not.toBe("failure");
 
-  if (!result.success) {
+  if (result.status === "failure") {
     throw new Error(
-      `Expected success but received ${result.error.code}: ${result.error.message}`,
+      `Expected success but received ${result.error?.code}: ${result.error?.message}`,
     );
   }
 
@@ -249,9 +249,9 @@ const expectSuccess = (
 const expectFailure = (
   result: Awaited<ReturnType<typeof generateDocumentation>>,
 ) => {
-  expect(result.success).toBe(false);
+  expect(result.status).toBe("failure");
 
-  if (result.success) {
+  if (result.status !== "failure") {
     throw new Error("Expected generation to fail");
   }
 
@@ -357,12 +357,17 @@ describe("public SDK integration contract", () => {
       message: "Generation failed",
     };
     const runResult: DocumentationRunResult = {
-      durationSeconds: 1,
+      status: "failure",
       error: engineError,
       failedStage: "analyzing-structure",
       mode: "full",
       runId: "run-1",
-      success: false,
+      moduleOutcomes: [],
+      successCount: 0,
+      failureCount: 0,
+      totalDurationMs: 1000,
+      observationCount: 0,
+      costUsd: null,
       warnings: [],
     };
 
@@ -577,7 +582,7 @@ describe("public SDK integration contract", () => {
 
     expect(result.mode).toBe("full");
     expect(result.commitHash).toBe("0123456789abcdef0123456789abcdef01234567");
-    expect(result.durationSeconds).toBeGreaterThan(0);
+    expect(result.totalDurationMs).toBeGreaterThan(0);
     expect(result.costUsd).toBeTypeOf("number");
     expect(result.generatedFiles).toEqual([
       ".doc-meta.json",
@@ -613,10 +618,10 @@ describe("public SDK integration contract", () => {
       }),
     );
 
-    expect(result.success).toBe(false);
+    expect(result.status).toBe("failure");
     expect(result.failedStage).toBe("analyzing-structure");
-    expect(result.error.code).toBe("ANALYSIS_ERROR");
-    expect(result.error.message).toBe("Structural analysis crashed");
+    expect(result.error!.code).toBe("ANALYSIS_ERROR");
+    expect(result.error!.message).toBe("Structural analysis crashed");
   });
 
   it("TC-3.4c: cost is null when unavailable", async () => {
@@ -691,7 +696,7 @@ describe("public SDK integration contract", () => {
       "overview.md",
       "utils.md",
     ]);
-    expect(result.validationResult.status).toBe("pass");
+    expect(result.validationResult!.status).toBe("pass");
     expect(result.commitHash).toBe("0123456789abcdef0123456789abcdef01234567");
     expect(result.mode).toBe("full");
     expect(result.warnings).toEqual([]);

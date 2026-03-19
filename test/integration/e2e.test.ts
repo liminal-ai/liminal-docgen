@@ -86,11 +86,11 @@ const expectAnalysis = (
 const expectSuccess = (
   result: Awaited<ReturnType<typeof generateDocumentation>>,
 ) => {
-  expect(result.success).toBe(true);
+  expect(result.status).not.toBe("failure");
 
-  if (!result.success) {
+  if (result.status === "failure") {
     throw new Error(
-      `Expected generation to succeed: ${result.error.code} ${result.error.message}`,
+      `Expected generation to succeed: ${result.error!.code} ${result.error!.message}`,
     );
   }
 
@@ -189,7 +189,7 @@ describe("integration E2E harness", () => {
 
     expect(result.outputPath).toBe(outputPath);
     expect(result.generatedFiles).toEqual(STORY5_EXPECTED_FILES);
-    expect(result.validationResult.status).toBe("pass");
+    expect(result.validationResult!.status).toBe("pass");
     expect((await readdir(outputPath)).sort()).toEqual(STORY5_EXPECTED_FILES);
     expect(modulePlan).toEqual({
       modules: [
